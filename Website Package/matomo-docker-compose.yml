@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+
+  matomo:
+    image: matomo
+    restart: always
+    ports:
+      - 8384:80
+    environment:
+      - MATOMO_DATABASE_HOST=db
+      - MATOMO_DATABASE_TABLES_PREFIX=mat_
+      - MATOMO_DATABASE_USERNAME=exampleuser
+      - MATOMO_DATABASE_PASSWORD=examplepass
+      - MATOMO_DATABASE_DBNAME=matomodb
+    volumes:
+      - ${CONFIG}Matomo:/var/www/html
+    links:
+      - db:db
+
+  db:
+    image: mariadb
+    restart: always
+    environment:
+      - MYSQL_DATABASE=matomodb
+      - MYSQL_USER
+      - MYSQL_PASSWORD
+      - MYSQL_RANDOM_ROOT_PASSWORD: '1'
+    volumes:
+      - ${CONFIG}Matomodb:/var/lib/mysql
