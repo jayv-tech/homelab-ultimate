@@ -1,0 +1,15 @@
+---
+version: "2.1"
+services:
+  dillinger:
+    image: lscr.io/linuxserver/dillinger:latest
+    container_name: dillinger
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG}dillinger:/config
+    ports:
+      - 8085:8080
+    restart: always
