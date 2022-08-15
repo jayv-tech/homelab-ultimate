@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  vaultwarden:
+    restart: always
+    container_name: vaultwarden
+    image: vaultwarden/server:latest
+    volumes:
+      - ${CONFIG}vaultwarden:/data/
+    ports:
+      - 8062:80
+    environment:
+      - EMERGENCY_ACCESS_ALLOWED=true
+      - SENDS_ALLOWED=true
+      - WEB_VAULT_ENABLED=true
