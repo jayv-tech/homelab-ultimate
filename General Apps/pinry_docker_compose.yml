@@ -1,0 +1,11 @@
+version: '3.3'
+services:
+  pinry:
+    ports:
+      - 8981:80
+    volumes:
+      - pinry:/data #You can mount 'pinry' however you'd like. This is just one option
+    image: getpinry/pinry
+
+volumes:
+  pinry:
