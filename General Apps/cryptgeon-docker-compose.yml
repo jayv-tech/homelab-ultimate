@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+
+  app:
+    image: cupcakearmy/cryptgeon:latest
+    depends_on:
+      - redis
+    environment:
+      SIZE_LIMIT: SZLM MiB
+      MAX_VIEWS: 100
+      MAX_EXPIRATION: 360
+    ports:
+      - 5000:5000
