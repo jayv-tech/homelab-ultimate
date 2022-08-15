@@ -1,0 +1,17 @@
+---
+version: "2.1"
+services:
+  code-server:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code-server
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - PASSWORD=examplepass
+      - SUDO_PASSWORD=examplepass #optional
+    volumes:
+      - ${CONFIG}code-server:/config
+    ports:
+      - 7443:8443
+    restart: unless-stopped
