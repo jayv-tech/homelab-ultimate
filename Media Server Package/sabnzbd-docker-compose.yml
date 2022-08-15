@@ -1,0 +1,15 @@
+version: "3"
+services:
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd
+    container_name: sabnzbd
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG}sabnzdb:/config
+      - ${DOWNLOADS}
+    ports:
+      - 8080:8080
