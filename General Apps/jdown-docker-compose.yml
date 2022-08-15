@@ -1,0 +1,11 @@
+version: 2
+services:
+  jdownloader-2:
+    image: jlesage/jdownloader-2
+    ports:
+      - 5800:5800
+      - 5900:5900
+      - 3129:3129
+    volumes:
+      - ${CONFIG}JDownloader-2:/config:rw
+      - path_for_down:/output:rw
