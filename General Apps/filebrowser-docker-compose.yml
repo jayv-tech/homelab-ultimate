@@ -1,0 +1,14 @@
+version: "3"
+services:
+  filebrowser:
+    image: hurlenko/filebrowser
+    ports:
+      - 8083:8080
+    volumes:
+      - /:/data
+      - ${CONFIG}/filebrowser:/config
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - FB_BASEURL=/filebrowser
+    restart: always
