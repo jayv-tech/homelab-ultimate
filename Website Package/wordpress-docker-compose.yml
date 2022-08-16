@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
 
   db:
-    image: mysql
+    image: yobasystems/alpine-mariadb:latest
     container_name: wordpress-mysql
     networks:
       - wordpress_network
