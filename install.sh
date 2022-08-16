@@ -2229,8 +2229,24 @@ echo ""
 
 clear
 
-echo "Welcome to the interactive and customizable Docker Setup."
 echo ""
+echo ""
+echo ""
+echo "  _   _  _  _    _                    _           _   _                          _         _      ";
+echo " | | | || || |_ (_) _ __ ___    __ _ | |_  ___   | | | |  ___   _ __ ___    ___ | |  __ _ | |__   ";
+echo " | | | || || __|| || '_ \` _ \  / _\` ||  / _ \  | |_| | / _ \ | '_ \` _ \ / _ \| | / _\` || '_\  ";
+echo " | |_| || || |_ | || | | | | || (_| || |_|  __/  |  _  || (_) || | | | | ||  __/| || (_| || |_) | ";
+echo "  \___/ |_| \__||_||_| |_| |_| \__,_| \__|\___|  |_| |_| \___/ |_| |_| |_| \___||_| \__,_||_.__/  ";
+echo "                                  ____         _                                                 ";
+echo "                                 / ___|   ___ | |_  _   _  _ __                                  ";
+echo "                                 \___ \  / _ \| __|| | | || '_ \                                 ";
+echo "                                  ___) ||  __/| |_ | |_| || |_) |                                ";
+echo "                                 |____/  \___| \__| \__,_|| .__/                                 ";
+echo "                                                          |_|                                    ";
+echo ""
+echo ""
+echo ""
+echo "Welcome to the interactive and customizable Homelab Setup."
 read -p "Please provide your name - " username
 echo ""
 echo "It's nice to interact with you $username. Thank you for choosing to install Docker with this script."
