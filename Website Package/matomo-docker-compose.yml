@@ -14,7 +14,7 @@ services:
       - MATOMO_DATABASE_PASSWORD=examplepass
       - MATOMO_DATABASE_DBNAME=matomodb
     volumes:
-      - ${CONFIG}Matomo:/var/www/html
+      - matomo:/var/www/html
     links:
       - db:db
 
@@ -22,9 +22,13 @@ services:
     image: yobasystems/alpine-mariadb:latest
     restart: always
     environment:
-      - MYSQL_DATABASE=matomodb
-      - MYSQL_USER=exampleuser
-      - MYSQL_PASSWORD=examplepass
-      - MYSQL_RANDOM_ROOT_PASSWORD: 'examplepass'
+      MYSQL_DATABASE: matomodb
+      MYSQL_USER: exampleuser
+      MYSQL_PASSWORD: examplepass
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
     volumes:
-      - ${CONFIG}Matomodb:/var/lib/mysql
+      - matomodb:/var/lib/mysql
+
+volumes:
+  matomo:
+  matomodb:
