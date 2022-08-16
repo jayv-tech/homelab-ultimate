@@ -103,169 +103,6 @@ installDock()
 
 }
 
-installNxtCld()
-{
-    clear
-    OS="$REPLY" ## <-- This $REPLY is about the application Selection
-    echo "This script will now install Docker and Nextcloud AIO image."
-
-    ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
-    ISCOMP=$( (docker-compose -v ) 2>&1 )
-
-    #### Try to check whether docker is installed and running - don't prompt if it is
-    if [[ "$ISACT" != "active" ]]; then
-        echo "#######################################################"
-        echo "###          Preparing for Installation             ###"
-        echo "#######################################################"
-        echo ""
-        sleep 3s
-
-         echo "    1. Installing System Updates. This may take a while."
-            (sudo apt update && sudo apt upgrade -y) > ~/docker-script-install.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-
-        echo "    2. Installing Prerequisite Packages."
-        sleep 2s
-
-            sudo apt install curl wget git -y >> ~/docker-script-install.log 2>&1
-
-        echo "    3. Installing Docker (Community Edition)."
-        sleep 2s
-
-            curl -fsSL https://get.docker.com | sh >> ~/docker-script-install.log 2>&1
-
-        echo "      - Docker version is now:"
-        DOCKERV=$(docker -v)
-        echo "          "${DOCKERV}
-        sleep 3s
-
-        echo "    4. Starting Docker Service"
-            sudo systemctl docker start >> ~/docker-script-install.log 2>&1
-
-        echo ""
-        echo "  - Adding this user account to the docker group."
-
-        sleep 2s
-        sudo usermod -aG docker "${USER}" >> ~/docker-script-install.log 2>&1
-        echo ""
-        echo ""
-        sleep 3s
-    else
-        echo "Docker appears to be installed and running."
-        echo ""
-        echo ""
-    fi
-
-    if [[ "$ISCOMP" == *"command not found"* ]]; then
-        echo ""
-        echo "    5. Installing Docker-Compose."
-        echo ""
-        echo ""
-        sleep 2s
-
-        sudo apt install docker-compose -y >> ~/docker-script-install.log 2>&1
-        
-        echo ""
-        echo "      - Docker Compose Version is now: " 
-        DOCKCOMPV=$(docker-compose --version)
-        echo "        "${DOCKCOMPV}
-        echo ""
-        echo ""
-        sleep 3s
-    else
-        echo "Docker-compose appears to be installed."
-        echo ""
-        echo ""
-    fi
-
-        # Enabling docker to start automatically on hardware reboot
-        echo "    6. Enabling the Docker service to start automatically on boot."
-        echo ""
-        sudo systemctl enable docker
-        sleep 1s
-
-        # Installing portainer for Docker GUI Management
-        echo "    7. Starting Docker Service."
-        echo ""
-        sudo docker volume create portainer_data
-        docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
-        echo ""
-        echo ""
-        sleep 3s
-
-        echo "    8. Installing Nextcloud AIO Container."
-
-        # Pull the Nextcloud docker-compose file from github
-        echo "    Pulling a default Nextcloud docker-compose.yml file."
-
-        mkdir -p docker/nextcloud
-        cd docker/nextcloud
-
-        ARCH=$( (uname -m ) 2>&1 )
-
-        if [[ "$ARCH" == "x86_64" || "$ARCH" == "i386" || "$ARCH" == "i486" || "$ARCH" == "i586" || "$ARCH" == "i686" ]]; then
-
-            curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudx86-docker-compose.yml -o docker-compose.yml >> ~/docker-script-install.log 2>&1
-
-        fi
-
-        if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm" || "$ARCH" == "arm64" || "$ARCH" == "armv8" ]]; then
-
-            curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudarm64-docker-compose.yml -o docker-compose.yml >> ~/docker-script-install.log 2>&1
-
-
-        echo "    Now you need to provide the path of the directory to store your files and folders in Nextcloud."
-        echo "      Provide the path in the format of '/data/path' without the trailing '/' "
-        echo "          Eg: /home/user/data (or) /mnt/data "
-        echo ""
-        read -rp "Specify the path to store Nextcloud data on: " NXTPTH
-        sed -i 's,/mnt/ncdata,"$NXTPTH",g' *
-        sudo mkdir "$NXTPTH" -p
-        sleep 1s
-        sudo chown -R 33:0 "$NXTPTH"
-        sudo chmod -R 750 "$NXTPTH"
-        sleep 1s
-
-        echo "    Running the docker-compose.yml to install and start Nextcloud instance."
-        echo ""
-        echo ""
-
-        (sudo docker-compose up -d) > ~/docker-script-install.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo ""
-        echo "    Go to http://(your device's IP address):8080 to setup"
-        echo "    Nextcloud AIO instance."
-        echo ""
-        echo ""       
-        sleep 3s
-        cd
-
-    exit 1
-
-}
-
 installMSP()
 {
     clear
@@ -414,6 +251,248 @@ installMSP()
         cd
 
     startInstallMPApps
+}
+
+installNxtCld()
+{
+    clear
+    echo "This script will now install Docker (community edition), Docker Compose, and Portainer."
+
+    ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
+    ISCOMP=$( (docker-compose -v ) 2>&1 )
+
+    #### Try to check whether docker is installed and running - don't prompt if it is
+    if [[ "$ISACT" != "active" ]]; then
+        echo "#######################################################"
+        echo "###          Preparing for Installation             ###"
+        echo "#######################################################"
+        echo ""
+        sleep 3s
+
+         echo "   Installing System Updates. This may take a while."
+            (sudo apt update && sudo apt upgrade -y) > ~/docker-script-install.log 2>&1 &
+            ## Show a spinner for activity progress
+            pid=$! # Process Id of the previous running command
+            spin='-\|/'
+            i=0
+            while kill -0 $pid 2>/dev/null
+            do
+                i=$(( (i+1) %4 ))
+                printf "\r${spin:$i:1}"
+                sleep .1
+            done
+            printf "\r"
+
+        echo "    Installing Prerequisite Packages."
+        sleep 2s
+
+            (sudo apt install curl wget git -y) >> ~/docker-script-install.log 2>&1 &
+            ## Show a spinner for activity progress
+            pid=$! # Process Id of the previous running command
+            spin='-\|/'
+            i=0
+            while kill -0 $pid 2>/dev/null
+            do
+                i=$(( (i+1) %4 ))
+                printf "\r${spin:$i:1}"
+                sleep .1
+            done
+            printf "\r"
+
+        echo "    Installing Docker (Community Edition)."
+        sleep 2s
+
+            (curl -fsSL https://get.docker.com | sh) >> ~/docker-script-install.log 2>&1 &
+            ## Show a spinner for activity progress
+            pid=$! # Process Id of the previous running command
+            spin='-\|/'
+            i=0
+            while kill -0 $pid 2>/dev/null
+            do
+                i=$(( (i+1) %4 ))
+                printf "\r${spin:$i:1}"
+                sleep .1
+            done
+            printf "\r"
+
+        echo "      - Version check:"
+        DOCKERV=$(docker -v)
+        echo "          "${DOCKERV}
+        sleep 3s
+
+        echo "    Starting Docker Service"
+        (sudo systemctl docker start) >> ~/docker-script-install.log 2>&1 &
+        
+        ## Show a spinner for activity progress
+            pid=$! # Process Id of the previous running command
+            spin='-\|/'
+            i=0
+            while kill -0 $pid 2>/dev/null
+            do
+                i=$(( (i+1) %4 ))
+                printf "\r${spin:$i:1}"
+                sleep .1
+            done
+            printf "\r"
+
+        echo ""
+        echo "  - Adding this user account to the docker group."
+
+        sleep 2s
+        (sudo usermod -aG docker "${USER}") >> ~/docker-script-install.log 2>&1 &
+        echo ""
+        echo ""
+        sleep 3s
+    else
+        echo "Docker appears to be installed and running."
+        echo ""
+        echo ""
+    fi
+
+    if [[ "$ISCOMP" == *"command not found"* ]]; then
+        echo ""
+        echo "    Installing Docker-Compose."
+        echo ""
+        echo ""
+        sleep 2s
+
+        (sudo apt install docker-compose -y) >> ~/docker-script-install.log 2>&1 &
+        
+        ## Show a spinner for activity progress
+            pid=$! # Process Id of the previous running command
+            spin='-\|/'
+            i=0
+            while kill -0 $pid 2>/dev/null
+            do
+                i=$(( (i+1) %4 ))
+                printf "\r${spin:$i:1}"
+                sleep .1
+            done
+            printf "\r"
+
+        echo ""
+        echo "    Version check: " 
+        DOCKCOMPV=$(docker-compose --version)
+        echo "        "${DOCKCOMPV}
+        echo ""
+        echo ""
+        sleep 3s
+    else
+        echo "Docker-Compose appears to be installed."
+        echo ""
+        echo ""
+    fi
+
+        # Enabling docker to start automatically on hardware reboot
+        echo "    Enabling the Docker service to start automatically on boot."
+        echo ""
+        (sudo systemctl enable docker) >> ~/docker-script-install.log 2>&1 
+        sleep 1s
+
+        # Installing portainer for Docker GUI Management
+        echo "    Installing Portainer."
+        echo ""
+        (sudo docker volume create portainer_data) >> ~/docker-script-install.log 2>&1
+        (sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/docker-script-install.log 2>&1 &
+        ## Show a spinner for activity progress
+            pid=$! # Process Id of the previous running command
+            spin='-\|/'
+            i=0
+            while kill -0 $pid 2>/dev/null
+            do
+                i=$(( (i+1) %4 ))
+                printf "\r${spin:$i:1}"
+                sleep .1
+            done
+            printf "\r"
+        echo ""
+        echo ""
+
+        echo "    Installing Nextcloud AIO Program."
+
+        # Pull the Nextcloud docker-compose file from github
+        echo "    Pulling a default Nextcloud docker-compose.yml file."
+
+        sudo mkdir -p docker/nextcloud
+        cd docker/nextcloud
+
+        echo "Now you need to provide the path of the directory to store your files and folders in Nextcloud."
+        echo "Provide the path in the format of '/data/path' without the trailing '/' "
+        echo "Eg: /home/user/data (or) /mnt/data "
+        echo ""
+        read -rp "Specify the path to store Nextcloud data on: " NXTPTH
+        sed -i 's,/mnt/ncdata,"$NXTPTH",g' *
+        sudo mkdir "$NXTPTH" -p
+        sleep 1s
+        sudo chown -R 33:0 "$NXTPTH"
+        sudo chmod -R 750 "$NXTPTH"
+        sleep 1s
+
+        echo "Running the docker commands to install and start Nextcloud instance."
+        echo ""
+        
+        ARCH=$( (uname -m ) 2>&1 )
+
+        if [[ "$ARCH" == "x86_64" || "$ARCH" == "i386" || "$ARCH" == "i486" || "$ARCH" == "i586" || "$ARCH" == "i686" ]]; then
+
+        #sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudx86-docker-compose.yml -o docker-compose.yml >> ~/docker-script-install.log 2>&1
+        #(sudo docker-compose up -d) > ~/docker-script-install.log 2>&1 &
+        
+        (sudo docker run -d --name nextcloud-aio-mastercontainer --restart always -p 80:80 -p 8080:8080 -p 8443:8443 -e NEXTCLOUD_DATADIR="$NXTPTH" --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config --volume /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest) >> ~/docker-script-install.log 2>&1 &
+        ## Show a spinner for activity progress
+        pid=$! # Process Id of the previous running command
+        spin='-\|/'
+        i=0
+        while kill -0 $pid 2>/dev/null
+        do
+            i=$(( (i+1) %4 ))
+            printf "\r${spin:$i:1}"
+            sleep .1
+        done
+        printf "\r"
+
+        fi
+
+        if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm" || "$ARCH" == "arm64" || "$ARCH" == "armv8" ]]; then
+
+        #sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudarm64-docker-compose.yml -o docker-compose.yml >> ~/docker-script-install.log 2>&1
+        #(sudo docker-compose up -d) > ~/docker-script-install.log 2>&1 &
+
+            (sudo docker run -d \
+            --name nextcloud-aio-mastercontainer \
+            --restart always \
+            -p 80:80 \
+            -p 8080:8080 \
+            -p 8443:8443 \
+            -e NEXTCLOUD_DATADIR="$NXTPTH" \
+            --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config \
+            --volume /var/run/docker.sock:/var/run/docker.sock:ro \
+            nextcloud/all-in-one:latest-arm64) >> ~/docker-script-install.log 2>&1 &
+
+        ## Show a spinner for activity progress
+        pid=$! # Process Id of the previous running command
+        spin='-\|/'
+        i=0
+        while kill -0 $pid 2>/dev/null
+        do
+            i=$(( (i+1) %4 ))
+            printf "\r${spin:$i:1}"
+            sleep .1
+        done
+        printf "\r"
+
+        fi
+
+        echo ""
+        echo ""
+        echo "    Go to https://(your device's IP address):8080 to setup  Nextcloud AIO instance."
+        echo ""
+        echo ""       
+        sleep 3s
+        cd
+
+        exit 1
+
 }
 
 startInstallMPApps()
@@ -1054,6 +1133,8 @@ installWP()
 
         sed -i 's,user_id,"$_uid",g' *
         sed -i 's,group_id,"$_gid",g' *
+        sed -i 's,exampleuser,"$WPUNAME",g' *
+        sed -i 's,examplepass,"$WPPSWD",g' *
 
         echo "    In order to proceed with the Website Package setup, you need to provide some additional details. "
         echo ""
@@ -2228,7 +2309,8 @@ echo ""
 echo ""
 
 clear
-
+# Caching sudo access for install completion
+sudo true
 echo ""
 echo ""
 echo ""
@@ -2253,17 +2335,16 @@ echo "It's nice to interact with you $username. Thank you for choosing to instal
 sleep 1s
 echo ""
 echo "You will be asked a series of questions, which lets you customize this installation to your needs."
-echo "Please be mindful of the instructions. Grab a cup of coffee and let's start"
+echo "Please be mindful of the instructions. Grab a cup of coffee and let's start."
 sleep 1s
 echo ""
 echo "Let's first figure out which distribution of Debian am I being used in."
 echo ""
-echo ""
-echo "    From some basic information on your system, you appear to be running: "
-echo "        --  OpSys        " $(lsb_release -i)
-echo "        --  Desc:        " $(lsb_release -d)
-echo "        --  OSVer        " $(lsb_release -r)
-echo "        --  CdNme        " $(lsb_release -c)
+echo "    You appear to be running: "
+echo "        --  " $(lsb_release -i)
+echo "        --  " $(lsb_release -d)
+echo "        --  " $(lsb_release -r)
+echo "        --  " $(lsb_release -c)
 echo ""
 echo "------------------------------------------------"
 echo ""
@@ -2272,30 +2353,31 @@ echo ""
 echo "Before proceeding with the installation, you need to provide some basic details to be used for configuration. "
 echo ""
 echo ""
-echo "    Provide your desired username for the applications and databases. "
+echo "Provide your desired username for the applications and databases. "
 echo ""
 read -rp "Desired Username: " WPUNAME
-sed -i 's,exampleuser,"$WPUNAME",g' *
 sleep 1s
 echo ""
-echo "    Provide your desired password for the applications and databases. "
-echo "    For security reasons, the password that you type will not be visible. So, please make sure that you type the password correctly."
+echo "Provide your desired password for the applications and databases. "
+echo "For security reasons, the password that you type will not be visible. So, please make sure that you type the password correctly."
 echo ""
 read -rsp "Desired Password: " WPPSWD
-sed -i 's,examplepass,"$WPPSWD",g' *
 sleep 1s
-
-echo "Thank you for the input. Note that this script comes with packages." 
-echo "You can choose from a list of options as detailed in the readme page in Github."
+echo ""
+echo ""
+echo "Thank you for the input. Note that this script comes with some packages." 
+echo "You can choose from a list of options as detailed in the Readme page in Github."
 echo ""
 sleep 1s
+echo ""
+echo ""
 PS3="Please select the package that you would like to install: "
 select _ in \
-    "Just Docker, Docker-Compose and Portainer" \
-    "Nextcloud AIO Package (Transform your system into a Google Drive alternative with more advanced features.)" \
-    "Media Server Package (Transform your system into a home-media server.)" \
+    "Just Docker, Docker-Compose and Portainer." \
+    "Nextcloud AIO Package (Transform your system into a Google Drive alternative, with more advanced features.)" \
+    "Media Server Package (Transform your system into a home media server.)" \
     "Website package (Transforms your system into a Wordpress Host.)" \
-    "General Apps (A list of self-hostable applications to choose from." \
+    "General Apps (A list of self-hostable applications to choose from.)" \
     "End this Installer"
     
 do
