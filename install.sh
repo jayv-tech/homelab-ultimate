@@ -426,7 +426,10 @@ echo ""
             echo " Okay $username, I got the list and let's start by installing the system updates."
             echo " Please note that this could take a while."
             echo ""
-            
+    ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
+    ISCOMP=$( (docker-compose -v ) 2>&1 )
+
+    if [[ "$ISACT" != "active" ]]; then        
             (sudo apt update && sudo apt upgrade -y) > ~/homelab-install-script.log 2>&1 &
             ## Show a spinner for activity progress
             pid=$! # Process Id of the previous running command
