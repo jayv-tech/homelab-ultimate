@@ -48,7 +48,7 @@ services:
       - MYSQL_DATABASE: wordpressdb
       - MYSQL_USER: exampleuser
       - MYSQL_PASSWORD: examplepass
-      - MYSQL_RANDOM_ROOT_PASSWORD: '1'
+      - MYSQL_RANDOM_ROOT_PASSWORD: 'examplepass'
     restart: unless-stopped
   
   app:
