@@ -19,7 +19,7 @@ services:
       - db:db
 
   db:
-    image: mariadb
+    image: yobasystems/alpine-mariadb:latest
     restart: always
     environment:
       - MYSQL_DATABASE=matomodb
