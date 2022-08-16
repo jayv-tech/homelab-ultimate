@@ -23,8 +23,8 @@ services:
     restart: always
     environment:
       - MYSQL_DATABASE=matomodb
-      - MYSQL_USER
-      - MYSQL_PASSWORD
-      - MYSQL_RANDOM_ROOT_PASSWORD: '1'
+      - MYSQL_USER=exampleuser
+      - MYSQL_PASSWORD=examplepass
+      - MYSQL_RANDOM_ROOT_PASSWORD: 'examplepass'
     volumes:
       - ${CONFIG}Matomodb:/var/lib/mysql
