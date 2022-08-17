@@ -283,7 +283,7 @@ if [[ "$ISACT" != "active" ]]; then
         #sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudx86-docker-compose.yml -o docker-compose.yml >> ~/homelab-install-script.log 2>&1
         #(sudo docker-compose up -d) > ~/homelab-install-script.log 2>&1 &
         #sed -i 's,/mnt/ncdata,"$NXTPTH",g' *
-        (sudo docker run -d --name nextcloud-aio-mastercontainer --restart always -p 80:80 -p 8080:8080 -p 8443:8443 -e NEXTCLOUD_DATADIR="$NXTPTH" --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config --volume /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest) >> ~/homelab-install-script.log 2>&1 &
+        (sudo docker run -d --name nextcloud-aio-mastercontainer --restart always -p 80:80 -p 8080:8080 -p 8443:8443 -e NEXTCLOUD_DATADIR=$NXTPTH --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config --volume /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest) >> ~/homelab-install-script.log 2>&1 &
         ## Show a spinner for activity progress
         pid=$! # Process Id of the previous running command
         spin='-\|/'
@@ -309,7 +309,7 @@ if [[ "$ISACT" != "active" ]]; then
             -p 80:80 \
             -p 8080:8080 \
             -p 8443:8443 \
-            -e NEXTCLOUD_DATADIR="$NXTPTH" \
+            -e NEXTCLOUD_DATADIR=$NXTPTH \
             --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config \
             --volume /var/run/docker.sock:/var/run/docker.sock:ro \
             nextcloud/all-in-one:latest-arm64) >> ~/homelab-install-script.log 2>&1 &
@@ -362,7 +362,7 @@ echo " Please provide the path of the directory where your media files reside. T
 echo " If there are no media files presently, the folders will be created for future use. "
 echo ""
 echo " Provide the path in the format of '/data/path' without the trailing '/'"
-echo " Eg: /home/$username/movies (or) /media/videos "
+echo " Eg: /home/$USER/movies (or) /media/videos "
 echo ""
         read -rp "Specify the path to Movies: " MOVPTH
         sudo mkdir "$MOVPTH" -p
@@ -418,12 +418,8 @@ echo " Watchtower checks for and updates all the docker applications on a regula
 read -rp "Install Watchtower? (y/n): " WTR
 sleep 1s
 echo ""
-echo " Portainer is the web GUI application for managing all your Docker Containers."
-read -rp "Install Portainer-CE? (y/n): " PTAINR
-sleep 1s
 echo ""
-echo ""
-            echo " Okay $username, I got the list and let's start by installing the system updates."
+            echo " Okay $username, I got the list of apps to install. Let's start by installing the system updates."
             echo " Please note that this could take a while."
             echo ""
     ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
@@ -527,19 +523,18 @@ echo ""
         
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/plex-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start Plex Media Server"
         echo ""
@@ -575,17 +570,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/tautulli-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start Tautulli"
         echo ""
@@ -621,17 +617,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/sonarr-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start Sonarr"
         echo ""
@@ -667,17 +664,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/radarr-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start Radarr"
         echo ""
@@ -713,17 +711,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/sabnzbd-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start Sabnzbd"
         echo ""
@@ -759,17 +758,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/deluge-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start Deluge"
         echo ""
@@ -805,17 +805,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/overseerr-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start Overseerr"
         echo ""
@@ -851,17 +852,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/jackett-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
         
         echo " Running the docker-compose.yml to install and start Jackett"
         echo ""
@@ -898,17 +900,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/watchtower-docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start Watchtower"
         echo ""
@@ -1102,17 +1105,18 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/wordpress-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/.env -0 .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
         sleep 1s
         echo ""
         (sudo docker-compose up -d) > ~/homelab-install-script.log 2>&1 &
@@ -1141,17 +1145,19 @@ echo ""
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/matomo-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
+        sleep 1s
 
         echo ""
         (sudo docker-compose up -d) > ~/homelab-install-script.log 2>&1 &
@@ -1367,15 +1373,16 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install and start NGinX Proxy Manager"
         echo ""
@@ -1417,15 +1424,16 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Filebrowser"
         echo ""
@@ -1464,15 +1472,16 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Snapdrop"
         echo ""
@@ -1510,15 +1519,16 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Codeserver"
         echo ""
@@ -1556,15 +1566,16 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Dillinger"
         echo ""
@@ -1603,15 +1614,16 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Cryptgeon uses your system's RAM to store the data and share it with full encryption. This is done with the help of Redis container."
         echo " Hence you need to specify a comfortable size limit (in MB) for the application to reserve in RAM."
@@ -1656,15 +1668,16 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Vaultwarden"
         echo ""
@@ -1731,17 +1744,18 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/trilium-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Trilium Notes"
         echo ""
@@ -1818,17 +1832,18 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/pinry_docker_compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Pinry"
         echo ""
@@ -1942,17 +1957,18 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/whoogle-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Whoogle"
         echo ""
@@ -1987,17 +2003,18 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/wikijs-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install Wiki.Js"
         echo ""
@@ -2032,17 +2049,18 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/jdown-docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
 
         echo " Running the docker-compose.yml to install JDownloader"
         echo ""
@@ -2082,17 +2100,18 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
         cd docker/dashy
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/dashy-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/.env -o .env) >> ~/docker-script-install.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,"$_uid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,"$_gid",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,"$MOVPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,"$SHWPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,"$DWNPTH",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,"$WPUNAME",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,"$WPPSWD",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"examplemail","$WPMLID",g' {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,"exampledomain","$WPDMN",g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,user_id,$_uid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,$_gid,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,$WPTZ,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,$MOVPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,$SHWPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,$DWNPTH,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,$WPUNAME,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,$WPPSWD,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,$WPMLID,g' {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,$WPDMN,g' {} +) >> ~/homelab-install-script.log 2>&1
                 
         echo " Running the docker-compose.yml to install Dashy"
         echo ""
@@ -2203,6 +2222,11 @@ LOCALIP=$(ip a | grep "scope global" | head -1 | awk '{print $2}' | sed 's|/.*||
 CLOUDIP=$(host myip.opendns.com resolver1.opendns.com | grep "myip.opendns.com has" | awk '{print $4}')
 _uid="$(id -u)"
 _gid="$(id -g)"
+sleep 1s
+echo "Provide the timezone in your location. If you are not familiar with this, you can visit http://www.timezoneconverter.com/cgi-bin/findzone.tzc and select your country. That will show the correct time zone."
+echo "Make sure to provide it in the correct format. Eg: Asia/Kolkata."
+echo ""
+read -rp "Timezone: " WPTZ
 sleep 1s
 echo ""
 echo ""
