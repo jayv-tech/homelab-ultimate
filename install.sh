@@ -1348,7 +1348,7 @@ echo " File Browser is a software where you can install it on a server, direct i
 read -rp "Install Filebrowser? (y/n): " FLBW
 sleep 1s
 echo ""
-echo "Snapdrop is a local file sharing server accessible from your browser inspired by Apple's Airdrop."
+echo "Snapdrop is a local file sharing server accessible from your browser inspired by Apple`s Airdrop."
 read -rp "Install Snapdrop? (y/n): " SNPDP
 sleep 1s
 echo ""
