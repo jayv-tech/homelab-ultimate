@@ -7,5 +7,5 @@ services:
       - 5900:5900
       - 3129:3129
     volumes:
-      - ${CONFIG}JDownloader-2:/config:rw
+      - /docker/JDownloader-2:/config:rw
       - path_for_down:/output:rw
