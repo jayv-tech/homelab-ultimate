@@ -43,8 +43,8 @@ services:
       - wordpress_network
     environment:
       MYSQL_DATABASE: wordpressdb
-      MYSQL_USER: exampleuser
-      MYSQL_PASSWORD: examplepass
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_RANDOM_ROOT_PASSWORD: '1'
     volumes:
       - db:/var/lib/mysql
@@ -61,12 +61,12 @@ services:
       - db
     environment:
       WORDPRESS_DB_HOST: db
-      WORDPRESS_DB_USER: exampleuser
-      WORDPRESS_DB_PASSWORD: examplepass
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
       WORDPRESS_DB_NAME: wordpressdb
-      VIRTUAL_HOST: exampledomain
-      LETSENCRYPT_HOST: exampledomain
-      LETSENCRYPT_EMAIL: examplemail
+      VIRTUAL_HOST: ${MYSQL_USER}
+      LETSENCRYPT_HOST: ${DOMAIN_NAME}
+      LETSENCRYPT_EMAIL: ${EMAIL_ID}
     volumes:
       - wordpress:/var/www/html
       - /etc/localtime:/etc/localtime:ro
