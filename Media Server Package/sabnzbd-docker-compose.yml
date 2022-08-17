@@ -5,11 +5,11 @@ services:
     container_name: sabnzbd
     restart: unless-stopped
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
     volumes:
-      - ${CONFIG}sabnzdb:/config
-      - ${DOWNLOADS}
+      - /docker/sabnzdb:/config
+      - path_for_down:/download
     ports:
       - 8080:8080
