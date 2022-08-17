@@ -5,10 +5,10 @@ services:
     container_name: tautulli
     restart: unless-stopped
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
     volumes:
-      - ${CONFIG}tautulli:/config
+      - /docker/tautulli:/config
     ports:
       - 8181:8181
