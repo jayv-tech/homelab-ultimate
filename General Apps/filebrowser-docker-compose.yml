@@ -6,10 +6,10 @@ services:
       - 8083:8080
     volumes:
       - /:/data
-      - /docker/filebrowser:/config
+      - ${CONFIG}/filebrowser:/config
     environment:
-      - PUID=user_id
-      - PGID=group_id
-      - TZ=time_zone
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
       - FB_BASEURL=/filebrowser
     restart: always
