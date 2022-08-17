@@ -284,7 +284,7 @@ if [[ "$ISACT" != "active" ]]; then
         
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -326,7 +326,7 @@ if [[ "$ISACT" != "active" ]]; then
         
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -619,7 +619,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -674,7 +674,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -729,7 +729,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -784,7 +784,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -839,7 +839,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -894,7 +894,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -949,7 +949,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1005,7 +1005,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1196,13 +1196,23 @@ echo ""
             printf "\r"
 
         echo " In order to proceed with the Website Package setup, you need to provide some additional details. "
+        echo " Please note that these values are not editable later on."
+        echo ""
+        echo " We can set a memory limit for the instance to hold. This has to be provided in megabytes."
+        echo ""
+        read -rp "Specify a comfortable memory limit (Eg: 64 or 128 etc.): " WPMEM
+        echo ""
+        echo " The maximum file size limit needs to be set. This is to ensure that the uploads are done properly to your instance."
+        echo ""
+        read -rp "Specify a comfortable file size limit (Eg: 128 or 256 etc.): " WPFLM
         echo ""
         echo " Your E-Mail ID is needed for acquiring free SSL certificates from Let's Encrypt that automatically renews upon expiry."
         echo ""
         read -rp "Your E-Mail ID: " WPMLID
         sleep 1s
         echo ""
-        echo " Finally, provide your Domain Name (Eg: awesome.$username.com). This will be registered with the SSL certificate generation."
+        echo " Finally, provide your Domain Name (Eg: $username.com). This will be registered with the SSL certificate generation."
+        echo " Do not enter any subdomains like wordpress.$username.com as that would interfere with SSL generation and automated proxy configuration."
         echo ""
         read -rp "Your domain name: " WPDMN
         sleep 1s
@@ -1217,7 +1227,11 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/uploads.ini -o uploads.ini) >> ~/homelab-install-script.log 2>&1
+
+        sleep 3s
+
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1232,12 +1246,16 @@ echo ""
         (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,mem_lm,'"$(echo "$WPMEM"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,file_lm,'"$(echo "$WPFLM"),g" {} +) >> ~/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
 
         sleep 2s
-        sleep 1s
+
         echo ""
         (sudo docker-compose up -d) > ~/homelab-install-script.log 2>&1 &
+                
+        sleep 30s
         ## Show a spinner for activity progress
         pid=$! # Process Id of the previous running command
         spin='-\|/'
@@ -1249,8 +1267,9 @@ echo ""
             sleep .1
         done
         printf "\r"
+
         echo ""
-        echo " Go to http://yourdomain.name to complete the famous five-minute installation” as a WordPress administrator."
+        echo " Go to http://$WPDMN to complete the famous five-minute installation” as a WordPress administrator."
         echo ""   
         sleep 3s
         cd
@@ -1265,7 +1284,7 @@ echo ""
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1347,7 +1366,7 @@ echo " File Browser is a software where you can install it on a server, direct i
 read -rp "Install Filebrowser? (y/n): " FLBW
 sleep 1s
 echo ""
-echo "Snapdrop is a local file sharing server accessible from your browser, kind of like Airdrop."
+echo " Snapdrop is a local file sharing server accessible from your browser, kind of like Airdrop."
 read -rp "Install Snapdrop? (y/n): " SNPDP
 sleep 1s
 echo ""
@@ -1515,7 +1534,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1574,7 +1593,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1630,7 +1649,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1685,7 +1704,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1740,7 +1759,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1792,7 +1811,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
         sudo mkdir -p docker/cryptgeon
         cd docker/cryptgeon
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/cryptgeon-docker-compose.yml) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/cryptgeon-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
         sleep 1s
 
@@ -1841,7 +1860,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -1927,7 +1946,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -2023,7 +2042,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -2156,7 +2175,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -2210,7 +2229,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -2264,7 +2283,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -2328,7 +2347,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
         
         sleep 1s
 
@@ -2430,7 +2449,7 @@ sleep 1s
 echo ""
 echo "Let's start by figuring out which distribution of Debian am I being used in."
 echo ""
-echo "    The system is based on: "
+echo "    This system is based on: "
 echo ""
 echo "        --  " $(lsb_release -i)
 echo "        --  " $(lsb_release -d)
