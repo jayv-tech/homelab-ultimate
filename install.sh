@@ -2223,6 +2223,7 @@ CLOUDIP=$(host myip.opendns.com resolver1.opendns.com | grep "myip.opendns.com h
 _uid="$(id -u)"
 _gid="$(id -g)"
 sleep 1s
+echo ""
 echo "Provide the timezone in your location. If you are not familiar with this, you can visit http://www.timezoneconverter.com/cgi-bin/findzone.tzc and select your country. That will show the correct time zone."
 echo "Make sure to provide it in the correct format. Eg: Asia/Kolkata."
 echo ""
