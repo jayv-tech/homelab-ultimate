@@ -11,8 +11,8 @@ services:
       - 4000:80
     environment:
       - NODE_ENV=production
-      - UID=0
-      - GID=0
+      - PUID=user_id
+      - PGID=group_id
     restart: always
     healthcheck:
       test: ['CMD', 'node', '/app/services/healthcheck']
