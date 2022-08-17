@@ -1,0 +1,31 @@
+#Env_Variables
+PUID=user_id
+PGID=group_id
+TZ=time_zone
+
+#Volumes
+CONFIG=path_for_conf
+DOWNLOADS=path_for_down
+TV=path_for_series
+MOVIES=path_for_movies
+
+#DB Data
+MARIADB_ROOT_PASSWORD=examplepass
+MARIADB_USER=exampleuser
+MARIADB_PASSWORD=examplepass
+MYSQL_USER= exampleuser
+POSTGRES_USER=exampleuser
+MYSQL_PASSWORD= examplepass
+MYSQL_ROOT_PASSWORD= examplepass
+POSTGRES_PASSWORD=examplepass
+
+#Wordpress specific Data
+DOMAIN_NAME=exampledomain
+EMAIL_ID=examplemail
+
+#Nextcloud specific Data
+DATA_PATH=/mnt/data/nxtcld
+
+#N8N specific Data
+N8N_BASIC_AUTH_USER=exampleuser
+N8N_BASIC_AUTH_PASSWORD=examplepass
