@@ -20,5 +20,5 @@ services:
       - APACHE_PORT=11000
       - APACHE_IP_BINDING=127.0.0.1
       - TALK_PORT=3478
-      - NEXTCLOUD_DATADIR=/mnt/ncdata
+      - NEXTCLOUD_DATADIR=/mnt/data/nxtcld
       - SKIP_DOMAIN_VALIDATION=true
