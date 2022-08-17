@@ -1,49 +1,34 @@
-version: "3.9"
+version: '2.1'
+
 services:
-    wordpress:
-        container_name: wordpress
-        image: wordpress:latest
-        restart: always
-        stdin_open: true
-        tty: true
-        environment:
-            WORDPRESS_DB_HOST: mariadb
-            WORDPRESS_DB_USER: ${MARIADB_USER}
-            WORDPRESS_DB_PASSWORD: ${MARIADB_PASSWORD}
-            WORDPRESS_DB_NAME: wordpressdb
-        volumes:
-            - wordpress_data:/var/www/html
-            - ./wordpress:/var/www/html
-    mariadb:
-        container_name: mariadb
-        image: mariadb
-        restart: always
-        environment:
-            MYSQL_DATABASE: wordpressdb
-            MYSQL_USER: ${MARIADB_USER}
-            MYSQL_PASSWORD: ${MARIADB_PASSWORD}
-            MYSQL_RANDOM_ROOT_PASSWORD: '${MYSQL_ROOT_PASSWORD}'
-        volumes:
-            - db_data:/var/lib/mysql
-    nginx:
-        container_name: nginx
-        image: nginx:latest
-        restart: unless-stopped
-        ports:
-            - 80:80
-            - 443:443
-        volumes:
-            - ./nginx/conf:/etc/nginx/conf.d
-            - ./certbot/conf:/etc/nginx/ssl
-            - ./certbot/data:/var/www/html
-    certbot:
-        container_name: certbot
-        image: certbot/certbot:latest
-        command: certonly --webroot --webroot-path=/var/www/html --email examplemail --agree-tos --no-eff-email -d exampledomain -d www.exampledomain
-        volumes:
-            - ./certbot/conf:/etc/letsencrypt
-            - ./certbot/logs:/var/log/letsencrypt
-            - ./certbot/data:/var/www/html
+
+  wordpress:
+    image: wordpress
+    restart: always
+    ports:
+      - 8282:80
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: wordpressdb
+    volumes:
+      - ./wp-content:/var/www/html/wp-content
+      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    links:
+      - db:db
+
+  db:
+    image: mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: wordpressdb
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+    volumes:
+      - db:/var/lib/mysql
+
 volumes:
-    db_data:
-    wordpress_data:
+  wordpress:
+  db:
