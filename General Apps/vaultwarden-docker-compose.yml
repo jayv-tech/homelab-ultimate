@@ -6,7 +6,7 @@ services:
     container_name: vaultwarden
     image: vaultwarden/server:latest
     volumes:
-      - ${CONFIG}vaultwarden:/data/
+      - /docker/vaultwarden:/data/
     ports:
       - 8062:80
     environment:
