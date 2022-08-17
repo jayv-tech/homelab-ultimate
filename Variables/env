@@ -24,7 +24,7 @@ DOMAIN_NAME=exampledomain
 EMAIL_ID=examplemail
 
 #Nextcloud specific Data
-DATA_PATH=/mnt/data/nxtcld
+DATA_PATH=path_for_nxtdata
 
 #N8N specific Data
 N8N_BASIC_AUTH_USER=exampleuser
