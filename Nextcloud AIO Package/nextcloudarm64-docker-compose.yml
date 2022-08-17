@@ -16,7 +16,7 @@ services:
       - 80:80
       - 8080:8080
       - 8443:8443
-     environment:
+    environment:
       - APACHE_PORT=11000 
       - APACHE_IP_BINDING=127.0.0.1
       - TALK_PORT=3478
