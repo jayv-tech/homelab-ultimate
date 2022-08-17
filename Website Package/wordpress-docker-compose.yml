@@ -1,81 +1,49 @@
-version: '3' 
-
+version: "3.9"
 services:
-
-  proxy:
-    image: jwilder/nginx-proxy:alpine
-    labels:
-      - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy=true"
-    container_name: wordpress-proxy
-    networks:
-      - wordpress_network
-    ports:
-      - 80:80
-      - 443:443
-    volumes:
-      - ./proxy/conf.d:/etc/nginx/conf.d:rw
-      - ./proxy/vhost.d:/etc/nginx/vhost.d:rw
-      - ./proxy/html:/usr/share/nginx/html:rw
-      - ./proxy/certs:/etc/nginx/certs:ro
-      - /etc/localtime:/etc/localtime:ro
-      - /var/run/docker.sock:/tmp/docker.sock:ro
-    restart: unless-stopped
-  
-  letsencrypt:
-    image: jrcs/letsencrypt-nginx-proxy-companion
-    container_name: wordpress-letsencrypt
-    depends_on:
-      - proxy
-    networks:
-      - wordpress_network
-    volumes:
-      - ./proxy/certs:/etc/nginx/certs:rw
-      - ./proxy/vhost.d:/etc/nginx/vhost.d:rw
-      - ./proxy/html:/usr/share/nginx/html:rw
-      - /etc/localtime:/etc/localtime:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-
-  db:
-    image: mysql:5.7
-    restart: always
-    networks:
-      - wordpress_network
-    environment:
-      MYSQL_DATABASE: wordpressdb
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_RANDOM_ROOT_PASSWORD: '1'
-    volumes:
-      - db:/var/lib/mysql
-      - /etc/localtime:/etc/localtime:ro
-      
-  wordpress:
-    image: wordpress
-    restart: always
-    networks:
-      - wordpress_network
-    depends_on:
-      - letsencrypt
-      - proxy
-      - db
-    environment:
-      WORDPRESS_DB_HOST: db
-      WORDPRESS_DB_USER: ${MYSQL_USER}
-      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
-      WORDPRESS_DB_NAME: wordpressdb
-      VIRTUAL_HOST: ${MYSQL_USER}
-      LETSENCRYPT_HOST: ${DOMAIN_NAME}
-      LETSENCRYPT_EMAIL: ${EMAIL_ID}
-    volumes:
-      - wordpress:/var/www/html
-      - /etc/localtime:/etc/localtime:ro
-    links:
-      - db:db
-
+    wordpress:
+        container_name: wordpress
+        image: wordpress:latest
+        restart: always
+        stdin_open: true
+        tty: true
+        environment:
+            WORDPRESS_DB_HOST: mariadb
+            WORDPRESS_DB_USER: ${MARIADB_USER}
+            WORDPRESS_DB_PASSWORD: ${MARIADB_PASSWORD}
+            WORDPRESS_DB_NAME: wordpressdb
+        volumes:
+            - wordpress_data:/var/www/html
+            - ./wordpress:/var/www/html
+    mariadb:
+        container_name: mariadb
+        image: mariadb
+        restart: always
+        environment:
+            MYSQL_DATABASE: wordpressdb
+            MYSQL_USER: ${MARIADB_USER}
+            MYSQL_PASSWORD: ${MARIADB_PASSWORD}
+            MYSQL_RANDOM_ROOT_PASSWORD: '${MYSQL_ROOT_PASSWORD}'
+        volumes:
+            - db_data:/var/lib/mysql
+    nginx:
+        container_name: nginx
+        image: nginx:latest
+        restart: unless-stopped
+        ports:
+            - 80:80
+            - 443:443
+        volumes:
+            - ./nginx/conf:/etc/nginx/conf.d
+            - ./certbot/conf:/etc/nginx/ssl
+            - ./certbot/data:/var/www/html
+    certbot:
+        container_name: certbot
+        image: certbot/certbot:latest
+        command: certonly --webroot --webroot-path=/var/www/html --email examplemail --agree-tos --no-eff-email -d exampledomain -d www.exampledomain
+        volumes:
+            - ./certbot/conf:/etc/letsencrypt
+            - ./certbot/logs:/var/log/letsencrypt
+            - ./certbot/data:/var/www/html
 volumes:
-  wordpress:
-  db:
-
-networks:
-  wordpress_network:
+    db_data:
+    wordpress_data:
