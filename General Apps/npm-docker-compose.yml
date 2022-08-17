@@ -29,9 +29,9 @@ services:
     image: 'jc21/mariadb-aria:latest'
     restart: unless-stopped
     environment:
-      - MYSQL_ROOT_PASSWORD
-      - MYSQL_DATABASE: 'NginxDatabase'
-      - MYSQL_USER
-      - MYSQL_PASSWORD
+      MYSQL_ROOT_PASSWORD: 'examplepass'
+      MYSQL_DATABASE: 'NginxDatabase'
+      MYSQL_USER: 'exampleuser'
+      MYSQL_PASSWORD: 'examplepass'
     volumes:
       - ./data/mysql:/var/lib/mysql
