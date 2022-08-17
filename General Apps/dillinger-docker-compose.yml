@@ -5,11 +5,11 @@ services:
     image: lscr.io/linuxserver/dillinger:latest
     container_name: dillinger
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
     volumes:
-      - ${CONFIG}dillinger:/config
+      - /docker/dillinger:/config
     ports:
       - 8085:8080
     restart: always
