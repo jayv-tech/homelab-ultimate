@@ -5,12 +5,12 @@ services:
     container_name: sonarr
     restart: unless-stopped
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}      
-      - TZ=${TZ}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
     volumes:
-      - ${CONFIG}sonarr:/config
-      - ${TV}
-      - ${DOWNLOADS}
+      - /docker/sonarr:/config
+      - path_for_series:/tv
+      - path_for_down:/download
     ports:
       - 8989:8989
