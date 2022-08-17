@@ -1211,11 +1211,6 @@ echo ""
         read -rp "Your E-Mail ID: " WPMLID
         sleep 1s
         echo ""
-        echo " Finally, provide your Domain Name (Eg: $username.com). This will be registered with the SSL certificate generation."
-        echo " Do not enter any subdomains like wordpress.$username.com as that would interfere with SSL generation and automated proxy configuration."
-        echo ""
-        read -rp "Your domain name: " WPDMN
-        sleep 1s
         echo ""
         echo " Thank you for the input, the installation is resuming now."
         echo ""
@@ -1268,9 +1263,6 @@ echo ""
         done
         printf "\r"
 
-        echo ""
-        echo " Go to http://$WPDMN to complete the famous five-minute installation” as a WordPress administrator."
-        echo ""   
         sleep 3s
         cd
 
@@ -1299,9 +1291,8 @@ echo ""
         (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
-
-        sleep 2s
+        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1     
+        
         sleep 1s
 
         echo ""
@@ -1321,7 +1312,66 @@ echo ""
         echo " Go to http://${LOCALIP}:8384 to view your Matomo instance."
         echo ""
         sleep 3s
+
+        echo " Pulling a default NGinX Proxy Manager docker-compose.yml file."
+
+        sudo mkdir -p docker/nginx-proxy-manager
+        cd docker/nginx-proxy-manager
+
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/npm-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
+
+        sleep 1s
+
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/homelab-install-script.log 2>&1
+        
+        sleep 1s
+
+        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
+
+        sleep 2s
+
+        echo " Running the docker-compose.yml to install and start NGinX Proxy Manager"
+        echo ""
+        (sudo docker-compose up -d) > ~/homelab-install-script.log 2>&1 &
+        ## Show a spinner for activity progress
+        pid=$! # Process Id of the previous running command
+        spin='-\|/'
+        i=0
+        while kill -0 $pid 2>/dev/null
+        do
+            i=$(( (i+1) %4 ))
+            printf "\r${spin:$i:1}"
+            sleep .1
+        done
+        printf "\r"
+
+        echo ""
+        echo ""
+        echo " Go to http://${LOCALIP}:81 to setup the Nginx Proxy Manager admin account and configure your domain to this instance."
+        echo " Note that the Wordpress instance is running on port 8282. Use this port to setup the prox for your domain prior to starting"
+        echo " the famous five-minute installation of wordpress."
+        echo ""
+        echo " The default login credentials for Nginx Proxy Manager are:"
+        echo ""
+        echo "  username: admin@example.com"
+        echo "  password: changeme"
+        echo ""
+        echo ""
+        echo " Thank you for using this script!"       
+        sleep 3s
         cd
+
     exit 1 
 
 }
