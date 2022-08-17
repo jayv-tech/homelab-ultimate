@@ -5,10 +5,10 @@ services:
     container_name: overseerr
     restart: unless-stopped
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
     volumes:
-      - ${CONFIG}overseerr:/app/config
+      - /docker/overseerr:/app/config
     ports:
       - 5055:5055
