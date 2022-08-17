@@ -4,7 +4,7 @@ services:
     ports:
       - 8981:80
     volumes:
-      - pinry:/data #You can mount 'pinry' however you'd like. This is just one option
+      - pinry:/data
     image: getpinry/pinry
 
 volumes:
