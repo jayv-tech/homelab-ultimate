@@ -5,11 +5,12 @@ services:
     container_name: plex
     network_mode: host
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
       - VERSION=docker
     volumes:
-      - ${CONFIG}plex:/config
-      - ${TV}:/tv
-      - ${MOVIES}:/movies
+      - /docker/plex:/config
+      - path_for_series:/tv
+      - path_for_movies:/movies
     restart: unless-stopped
