@@ -5,12 +5,12 @@ services:
     container_name: radarr
     restart: unless-stopped
     environment:
-      - PUID=user_id
-      - PGID=group_id
-      - TZ=time_zone
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
     volumes:
-      - /docker/radarr:/config
-      - path_for_movies:/movies
-      - path_for_down:/download
+      - ${CONFIG}/radarr:/config
+      - ${MOVIES}:/movies
+      - ${DOWNLOADS}:/download
     ports:
       - 7878:7878
