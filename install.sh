@@ -2438,10 +2438,10 @@ echo "It's nice to interact with you $username. Thank you for choosing to instal
 sleep 1s
 echo ""
 echo "You will be asked a series of questions, which lets you customize this installation to your needs."
-echo "Please be mindful of the instructions. Grab a cup of coffee and let's start."
+echo "Please be mindful of the instructions and also grab a cup of coffee."
 sleep 1s
 echo ""
-echo "Let's first figure out which distribution of Debian am I being used in."
+echo "Let's start by figuring out which distribution of Debian am I being used in."
 echo ""
 echo "    The system is based on: "
 echo ""
@@ -2471,7 +2471,9 @@ _uid="$(id -u)"
 _gid="$(id -g)"
 sleep 1s
 echo ""
-echo "Provide the timezone in your location. If you are not familiar with this, you can visit http://www.timezoneconverter.com/cgi-bin/findzone.tzc and select your country. That will show the correct time zone."
+echo ""
+echo "Provide the timezone in your location. "
+echo "If you are not familiar with this, you can visit http://www.timezoneconverter.com/cgi-bin/findzone.tzc and select your country."
 echo "Make sure to provide it in the correct format. Eg: Asia/Kolkata."
 echo ""
 read -rp "Timezone: " WPTZ
@@ -2482,7 +2484,6 @@ echo "Thank you for the input. Note that this script comes with some packages."
 echo "You can choose from a list of options as detailed in the Readme page in Github."
 echo ""
 sleep 1s
-echo ""
 echo ""
 PS3="Please select the package that you would like to install: "
 select _ in \
