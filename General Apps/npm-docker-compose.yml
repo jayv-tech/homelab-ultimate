@@ -14,9 +14,9 @@ services:
     environment:
       - DB_MYSQL_HOST: "db"
       - DB_MYSQL_PORT: 3306
-      - DB_MYSQL_USER: exampleuser
-      - DB_MYSQL_PASSWORD: examplepass
-      - DB_MYSQL_NAME: "NginxDatabase"
+      - DB_MYSQL_USER: ${MYSQL_USER}
+      - DB_MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      - DB_MYSQL_NAME: 'NginxDatabase'
       - DISABLE_IPV6: 'true'
     volumes:
       - ./data:/data
@@ -29,9 +29,9 @@ services:
     image: 'jc21/mariadb-aria:latest'
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: 'examplepass'
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: 'NginxDatabase'
-      MYSQL_USER: 'exampleuser'
-      MYSQL_PASSWORD: 'examplepass'
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - ./data/mysql:/var/lib/mysql
