@@ -5,11 +5,11 @@ services:
     image: lscr.io/linuxserver/snapdrop:latest
     container_name: snapdrop
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
     volumes:
-      - ${CONFIG}/snapdrop:/config
+      - /docker/snapdrop:/config
     ports:
       - 82:80
       - 8443:443
