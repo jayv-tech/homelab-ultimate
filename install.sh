@@ -239,7 +239,7 @@ if [[ "$ISACT" != "active" ]]; then
         echo ""
         sleep 1s
         # Installing portainer for Docker GUI Management
-        echo " Finishing up by installing Portainer's community edition image."
+        echo " Installing Portainer's community edition image."
         (sudo docker volume create portainer_data) >> ~/homelab-install-script.log 2>&1
         (sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/homelab-install-script.log 2>&1 &
         ## Show a spinner for activity progress
@@ -1203,7 +1203,6 @@ echo ""
         sleep 1s
         echo ""
         echo " Finally, provide your Domain Name (Eg: awesome.$username.com). This will be registered with the SSL certificate generation."
-        echo " If you don't have a domain name, you can get a free Dynamic DNS from duckdns.org"
         echo ""
         read -rp "Your domain name: " WPDMN
         sleep 1s
@@ -1323,7 +1322,7 @@ echo ""
 echo ""
 
 
-echo " Now, you will be shown a short description of various applications supported by me (as of now).
+echo " Now, you will be shown a short description of various applications supported by me (as of now)."
 echo ""       
 echo " Before that, please provide the path of the directory where you want the applications to be installed. This is required for proper configuration."
 echo " If the folder doesn't exist, it will be created for future use. "
@@ -1348,7 +1347,7 @@ echo " File Browser is a software where you can install it on a server, direct i
 read -rp "Install Filebrowser? (y/n): " FLBW
 sleep 1s
 echo ""
-echo "Snapdrop is a local file sharing server accessible from your browser inspired by Apple`s Airdrop."
+echo "Snapdrop is a local file sharing server accessible from your browser, kind of like Airdrop."
 read -rp "Install Snapdrop? (y/n): " SNPDP
 sleep 1s
 echo ""
@@ -1368,7 +1367,7 @@ echo " Vaultwarden is a strong password manager that supports many features and 
 read -rp "Install Vaultwarden? (y/n): " VLWDN
 sleep 1s
 echo ""
-echo "Uptime Kuma is a self-hosted monitoring tool like Uptime Robot."
+echo " Uptime Kuma is a self-hosted monitoring tool like Uptime Robot."
 read -rp "Install Uptime Kuma? (y/n): " UPKMA
 sleep 1s
 echo ""
@@ -1392,19 +1391,19 @@ echo ""
 #    read -rp "Install Polr? (y/n): " POLR
 #    sleep 1s
 #echo ""
-echo "Whoogle lets you get Google search results, but without any ads, javascript, AMP links, cookies, or IP address tracking. "
+echo " Whoogle lets you get Google search results, but without any ads, javascript, AMP links, cookies, or IP address tracking. "
 read -rp "Install Whoogle? (y/n): " WGLE
 sleep 1s
 echo ""
-echo "Wiki.Js The most powerful and extensible open source Wiki software"
+echo " Wiki.Js The most powerful and extensible open source Wiki software"
 read -rp "Install Wiki.Js? (y/n): " WJS
 sleep 1s
 echo ""
-echo "JDownloader is a free, open-source download management tool. "
+echo " JDownloader is a free, open-source download management tool. "
 read -rp "Install JDownloader? (y/n): " JDWN
 sleep 1s
 echo ""
-echo "Dashy is an open source, highly customizable, easy to use, privacy-respecting dashboard app."
+echo " Dashy is an open source, highly customizable, easy to use, privacy-respecting dashboard app."
 read -rp "Install Dashy? (y/n): " DASHY
 sleep 1s
 echo ""
@@ -1682,7 +1681,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
         sudo mkdir -p docker/codeserver
         cd docker/codeserver
 
-        (sudo https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/codeserver-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/codeserver-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
         sleep 1s
 
@@ -1797,30 +1796,13 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         sleep 1s
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker-script-install.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/homelab-install-script.log 2>&1
-
-        sleep 2s
-
         echo " Cryptgeon uses your system's RAM to store the data and share it with full encryption. This is done with the help of Redis container."
         echo " Hence you need to specify a comfortable size limit (in MB) for the application to reserve in RAM."
         echo ""
         read -rp "Specify size limit in megabytes (Eg: 32): " CPTGNLM
-        sed -i 's,SZLM,"$CPTGNLM",g' *
+        
+        (find . -type f -exec sed -i 's,SZLM,'"$(echo "$CPTGNLM"),g" {} +) >> ~/homelab-install-script.log 2>&1
+        
         sleep 1s
 
         echo " Running the docker-compose.yml to install the application."
@@ -2278,7 +2260,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
         sudo mkdir -p docker/jdownloader
         cd docker/jdownloader
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/jdown-docker-compose.yml) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/jdown-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
         sleep 1s
 
@@ -2329,6 +2311,7 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
         echo ""
         echo " Preparing to install Dashy"
 
+        sudo mkdir -p docker/dashy
         sudo mkdir -p docker/dashy/public
         sudo mkdir -p docker/dashy/icons
         
@@ -2336,7 +2319,11 @@ echo " Okay $username, I've taken the list of what apps to install. Let's start 
 
         (sudo git clone https://github.com/walkxcode/dashboard-icons.git) >> ~/homelab-install-script.log 2>&1
 
-        cd docker/dashy
+        sleep 1s
+        cd
+        sleep 1s
+
+        cd docker/dashy/public
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/dashy-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
         sleep 1s
