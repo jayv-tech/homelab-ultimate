@@ -4,13 +4,13 @@ services:
     image: lscr.io/linuxserver/deluge
     container_name: deluge
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
       - DELUGE_LOGLEVEL=error #optional
     volumes:
-      - ${CONFIG}deluge:/config
-      - ${DOWNLOADS}
+      - /docker/deluge:/config
+      - path_for_down:/download
     ports:
       - 8112:8112
       - 6881:6881
