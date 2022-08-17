@@ -11,6 +11,6 @@ services:
       - "85:8080"
     volumes:
       - trilium:/data
-
+      
 volumes:
   trilium:
