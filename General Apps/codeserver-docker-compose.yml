@@ -5,13 +5,13 @@ services:
     image: lscr.io/linuxserver/code-server:latest
     container_name: code-server
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+      - PUID=user_id
+      - PGID=group_id
+      - TZ=time_zone
       - PASSWORD=examplepass
       - SUDO_PASSWORD=examplepass #optional
     volumes:
-      - ${CONFIG}code-server:/config
+      - /docker/code-server:/config
     ports:
       - 7443:8443
     restart: unless-stopped
