@@ -41,4 +41,6 @@ Now, you will be presented with the following options:
 
 Once you follow the specified instructions and answer to the basic prompts, your instance will be fully setup and ready to go.
 
+> P.S. In case you face a timeout error on visiting the Portainer's URL, do visit this **[document](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/portainer-error.md)** to fix it.
+
 *Thank you for visitng* 
