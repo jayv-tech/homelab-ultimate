@@ -45,7 +45,7 @@ Once you finish making your choices, the script will start by initializing the s
 
 When the installation completes, I suggest that you visit the Portainer's URL (https://yourip:9443) and set up the admin account.
 
->Accessing service through a domain
+### Accessing applications through a domain
 
 If you like to access any of the application through a domain that you own, you'd need to assign your domain name and point it to the application's port to access it over the internet.
 
