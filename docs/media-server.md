@@ -2,27 +2,7 @@
 
 There are many applications that lets you easily manage your home media library. This section focuses on getting some of those applications installed properly in your system.
 
-When you initiate the script, you will be asked to provide your name. This is just for reference purposes and for some customized responses. Then it will show you the system details and the architecture that the system is running on.
-
->From now on, please read the instructions carefully.
-
-The applications might be accompanied with either a database or basic authentication or both. For setting up these applications properly, you need to provide your desired
-- Username
-- Password
-- Time Zone
-
-When you provide your input in the password field, it will not be visible for security reasons. Hence you need to make sure that you provide the correct input.
-
-Once that is done, you will be asked to provide the time zone of your location (or) where the system is in place. Make sure to provide the correct TZ database name for your region. If you are not familiar with this, you can visit the following link -
-[Find Zone](http://www.timezoneconverter.com/cgi-bin/findzone.tzc) and select your country. 
-
-<p align="center">
-  <img width="300" height="200" src="https://user-images.githubusercontent.com/101336634/185328347-06021cb5-78b4-4dd1-a476-1b6a1a26e3a2.png">
-</p>
-
->Package specific instructions:
-
-1. Once you get into the package specific menu, you will first be asked where to store the applications' data. This will then be updated as the storage location for all the config files.
+1. You will first be asked where to store the applications' data. This will then be updated as the storage location for all the config files.
 
 Example is provided below, you can either go for the same or change as per your needs.
 
