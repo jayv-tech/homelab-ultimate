@@ -23,8 +23,8 @@ Finally, the script will install Nginx Proxy Manager for connecting your domain 
 You can confirm the installation of all the containers by visiting https://yourip:9443 and accessing the Portainer's web GUI.
 
 ## Configuration
-At this point, don't continue with setting up the WordPress instance. You need to assign your domain name and point it to the port **8282** to access this over your domain.
+At this point, **don't continue** with setting up the WordPress instance. You need to assign your domain name and point it to the port **8282** to access this over your domain.
 
-You'd need to setup a proxy host for this IP with the domain name that you own. You will also get a free Let's Encrypt SSL that gets renewed automatically.
+You'd need to setup a proxy host for this IP with the domain name that you own. You can visit this **[document](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/nginx-proxy-manager.md)** if you'd like to know how to setup a domain to point to this instance. You will also get a free Let's Encrypt SSL that gets renewed automatically.
 
-You can visit this [document](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/nginx-proxy-manager.md) if you'd like to know how to setup a domain to point to this instance.
+Once your domain is pointed to this instance, you will be able to see the same setup screen on visiting https://yourdomain.com. At that point, you can start setting up and configuring your Wordpress instance. Happy Webbing!
