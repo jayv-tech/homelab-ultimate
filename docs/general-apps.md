@@ -44,3 +44,9 @@ The list of apps that can be installed are:
 Once you finish making your choices, the script will start by initializing the system updates, followed by Docker, Docker Compose, Portainer and the list of apps chosen.
 
 When the installation completes, I suggest that you visit the Portainer's URL (https://yourip:9443) and set up the admin account.
+
+>Accessing service through a domain
+
+If you like to access any of the application through a domain that you own, you'd need to assign your domain name and point it to the application's port to access it over the internet.
+
+You'd need to setup a proxy host for this domain name and point it to this IP . You can visit this **[document](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/nginx-proxy-manager.md)** if you'd like to know how to setup a domain to point to this instance. You will also get a free Let's Encrypt SSL that gets renewed automatically.
