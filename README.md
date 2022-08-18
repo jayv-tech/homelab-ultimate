@@ -49,7 +49,7 @@ Just add `sudo` in front.
 7. Takes the UID and GID by default (from the system) and applies it to the application's configuration.
 8. Outputs all the information to a log file for reference or troubleshooting.
 9. Provides the URL to access the application by taking note of the IP allocation to the system.
-10. Detailed documentation and Under active development.
+10. Detailed documentation and under active development.
 
 ## Packages
 
