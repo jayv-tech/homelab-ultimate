@@ -4,12 +4,7 @@
 
 ## Prerequisites
   - You need to have an Ubuntu/Debian-based machine.
-  - Your instance should have the updated version of 'git' installed. You can check if you have git installed or not by running the command `git version` and looking at the output.
- 
-       ![git version](https://user-images.githubusercontent.com/101336634/158008355-768918e3-7ced-462f-9a9f-e52e539c875b.png)
- - If it returns a value like it shows in this image, then you are all set. If not, you can use the following command to install the latest version of git in your system.
- `sudo apt update && sudo apt install git`
- 
+  - A good network connection to download the applications.
  
 ## Usage
 
@@ -43,23 +38,6 @@ Just add `sudo` in front.
    ./install.sh
 ```
 
-
-## Available Choices
-
-I have included some packages that lets you install and customize the applications to your needs. The available options are:
-
-- [Basic Setup](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/basic-setup.md)
-- [Nextcloud Package](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/nextcloud.md)
-- [Website Package](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/website-package.md)
-- [Media Server Package](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/media-server.md)
-- [General Apps](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/general-apps.md)
-
-Once you make the selection, you might be asked additional questions that helps you tailor this installation to your needs. Make sure to read the prompts carefully and proceed with installation.
-
-Choosing any option will get the default dependencies taken care of (i.e.) the script will install Docker, Docker-Compose and Portainer.
-
-**[Back to Top](#ultimate-homelab-setup)**
-
 ## Features
 
 1. Supports both AMD64 and ARM architectures with easy to follow instructions.
@@ -73,12 +51,30 @@ Choosing any option will get the default dependencies taken care of (i.e.) the s
 9. Provides the URL to access the application by taking notw of the IP allocation to the system.
 10. Under active development.
 
+## Packages
 
-## Legal Terms
+I have included some packages that lets you install and customize the applications to your needs. The available options are:
+
+- Basic Setup
+- Nextcloud Package
+- Website Package
+- Media Server Package
+- General Apps
+
+>Visit the **[documentation](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/README.md)** section to know about the prompts and package specific instructions.
+
+Once you make the selection, you might be asked additional questions that helps you tailor this installation to your needs. Make sure to read the prompts carefully and proceed with installation.
+
+Choosing any option will get the default dependencies taken care of (i.e.) the script will install Docker, Docker-Compose and Portainer.
+
+**[Back to Top](#ultimate-homelab-setup)**
+
+
+### Legal Terms
 
 Do note that there is no warranty provided with this script and it is completely open for everyone to provide contributions. This script is free to use in any private or a commercial deployment.
 
-## Support
+### Support
 
 If you are facing any issues with using this script or if any of the applications are not getting installed properly, you can always create an issue through Github. Please make sure that you tried some basic troubleshooting steps prior to raising an issue here.
 
