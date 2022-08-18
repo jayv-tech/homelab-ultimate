@@ -48,11 +48,11 @@ Just add `sudo` in front.
 
 I have included some packages that lets you install and customize the applications to your needs. The available options are:
 
-- [Basic setup](#ultimate-homelab-setup)
-- [Nextcloud Package](#ultimate-homelab-setup)
-- [Website Package](#ultimate-homelab-setup)
-- [Media Server Package](#ultimate-homelab-setup)
-- [General Apps](#ultimate-homelab-setup)
+- [Basic Setup](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/basic-setup.md)
+- [Nextcloud Package](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/nextcloud.md)
+- [Website Package](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/website-package.md)
+- [Media Server Package](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/media-server.md)
+- [General Apps](https://github.com/Jayavel-S/homelab-ultimate/blob/main/docs/general-apps.md)
 
 Once you make the selection, you might be asked additional questions that helps you tailor this installation to your needs. Make sure to read the prompts carefully and proceed with installation.
 
