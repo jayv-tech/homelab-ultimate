@@ -1001,7 +1001,7 @@ echo ""
         sudo mkdir -p docker/watchtower
         cd docker/watchtower
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/watchtower-docker-compose.yml) >> ~/homelab-install-script.log 2>&1
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/watchtower-docker-compose.yml -o docker-compose.yml) >> ~/homelab-install-script.log 2>&1
 
         sleep 1s
 
