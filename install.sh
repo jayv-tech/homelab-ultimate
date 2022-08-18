@@ -1206,15 +1206,13 @@ echo ""
         echo ""
         read -rp "Specify a comfortable file size limit (Eg: 128 or 256 etc.): " WPFLM
         echo ""
-        echo " Your E-Mail ID is needed for acquiring free SSL certificates from Let's Encrypt that automatically renews upon expiry."
-        echo ""
-        read -rp "Your E-Mail ID: " WPMLID
         sleep 1s
         echo ""
         echo ""
         echo " Thank you for the input, the installation is resuming now."
         echo ""
-        
+        sleep 1s
+        echo " Installing Matomo (It is a self-hosted analytics platform that integrates well with Wordpress)."
         sudo mkdir -p docker/wordpress
         cd docker/wordpress
 
@@ -1313,7 +1311,7 @@ echo ""
         echo ""
         sleep 3s
 
-        echo " Pulling a default NGinX Proxy Manager docker-compose.yml file."
+        echo " Installing NGinX Proxy Manager."
 
         sudo mkdir -p docker/nginx-proxy-manager
         cd docker/nginx-proxy-manager
@@ -1341,7 +1339,6 @@ echo ""
 
         sleep 2s
 
-        echo " Running the docker-compose.yml to install and start NGinX Proxy Manager"
         echo ""
         (sudo docker-compose up -d) > ~/homelab-install-script.log 2>&1 &
         ## Show a spinner for activity progress
