@@ -1,145 +1,548 @@
 #!/bin/bash
 
+# Must be root to continue with installation. To avoid any permission issues!
+echo ""
+if [[ $EUID -eq 0 ]];then
+    echo " You are root."
+else
+    echo " sudo will be used for the install."
+    # Check if sudo is installed
+    # If it isn't, exit because the installation cannot proceed.
+    if [[ $(dpkg-query -s sudo) ]];then
+        export SUDO="sudo"
+        export SUDOE="sudo -E"
+    else
+        echo " Please install sudo or run this as root."
+        exit 1
+    fi
+fi
+
 installDock()
 {
-    clear
+  clear
 
-    ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
-    ISCOMP=$( (docker-compose -v ) 2>&1 )
+    #Defining a spinner function beforehand to denote progress instead of showing output.
+    spinner()
+    {
+        local pid=$1
+        local delay=0.50
+        local spinstr='/-\|'
+        while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+            local temp=${spinstr#?}
+            printf " [%c]  " "${spinstr}"
+            local spinstr=${temp}${spinstr%"$temp"}
+            sleep ${delay}
+            printf "\b\b\b\b\b\b"
+        done
+        printf "    \b\b\b\b"
+    }
 
-    #### Try to check whether docker is installed and running - don't prompt if it is
-    if [[ "$ISACT" != "active" ]]; then
-        echo ""
-        echo ""
-        echo "  ____             _               ____       _               ";
-        echo " |  _ \  ___   ___| | _____ _ __  / ___|  ___| |_ _   _ _ __  ";
-        echo " | | | |/ _ \ / __| |/ / _ \ '__| \___ \ / _ \ __| | | | '_ \ ";
-        echo " | |_| | (_) | (__|   <  __/ |     ___) |  __/ |_| |_| | |_) |";
-        echo " |____/ \___/ \___|_|\_\___|_|    |____/ \___|\__|\__,_| .__/ ";
-        echo "                                                       |_|    ";
-        echo ""
-        echo ""
-        sleep 3s
+    #Updates check
+    checkForUpdates() 
+    {
+        #Running apt-get update to check for the updates available and also caching the number of packages that can be
+        #upgraded and advising the user to upgrade after the installation. To avoid issues with minimal output in Ubuntu.
 
-        echo " Okay $username, let's start by installing the system updates. This could take a while."
-        (sudo apt update && sudo apt upgrade -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The updates are done. Now the system is installing some prerequisite packages."
-        sleep 2s
-        echo ""
-        (sudo apt install curl wget git -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
-        sleep 2s
-        (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The installation of Docker Engine is complete and the version installed was - "
-        DOCKERV=$(docker -v)
-        echo "    "${DOCKERV}
-        sleep 3s
-        echo ""
-        echo " Starting the Docker Service"
-        (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        echo " Adding this user account to the docker group for getting necessary permissions."
-        sleep 2s
-        (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 3s
-    else
-        echo ""
-        echo " Docker appears to be already installed and running in this system."
-        echo ""
-    fi
+        timestamp=$(stat -c %Y /var/cache/apt/)
+        timestampAsDate=$(date -d @"$timestamp" "+%b %e")
+        today=$(date "+%b %e")
 
-    if [[ "$ISCOMP" == *"command not found"* ]]; then
-        echo " The script will now install the stable version of Docker-Compose."
-        sleep 2s
-        (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
+        if [ ! "$today" == "$timestampAsDate" ]; then
+            #update package lists
+            echo ""
+            echo -n " Hey $username, it seems that the package updates has not been run today. So, I am running them now."
+            $SUDO apt-get -qq update & spinner $!
+            echo " It's Done."
+        fi
         echo ""
-        echo " The installation of Docker-Compose is also done. The version installed was - " 
-        DOCKCOMPV=$(docker-compose --version)
-        echo "   "${DOCKCOMPV}
+        echo -n " Checking the repository for upgraded packages."
+        updatesToInstall=$($SUDO apt-get -s -o Debug::NoLocking=true upgrade | grep -c ^Inst)
+        echo " Done!"
         echo ""
-        sleep 3s
-    else
+        if [[ $updatesToInstall -eq "0" ]]; then
+            echo " Your system is up to date! Continuing with the installation."
+        else
+            echo " It seems that there are $updatesToInstall updates availible for your system."
+            echo " Please make sure that you run 'sudo apt-get upgrade' after this installation completes. "
+            echo ""
+        fi
         echo ""
-        echo " Docker-compose appears to be already installed."
-        echo ""
-    fi
-        # Enabling docker to start automatically on hardware reboot
-        echo " Enabling the Docker service to start automatically on boot."
-        (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 1s
-        # Installing portainer for Docker GUI Management
-        echo " Finishing up by installing Portainer's community edition image."
+        echo " Checking dependencies:"
+
+        dependencies=( git wget grep dnsutils expect whiptail )
+        for i in "${dependencies[@]}"; do
+            echo -n "    Checking for $i."
+            if [ "$(dpkg-query -W -f='${Status}' "$i" 2>> ~/docker/homelab-install-script.log | grep -c "ok installed")" -eq 0 ]; then
+                echo -n " Required packages are not found! Installing them now."
+                #Supply answers to the questions so we don't prompt user
+                if [[ $i == "expect" ]]; then
+                    ($SUDO apt-get --yes --quiet --no-install-recommends install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                else
+                    ($SUDO apt-get --yes --quiet install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                fi
+                echo " Done."
+            else
+                echo " Dependencies are already installed! Let's continue."
+            fi
+        done
+    }
+
+    DockCheck()
+    {
+        ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
+        ISCOMP=$( (docker-compose -v ) 2>&1 )
+
+        #### Try to check whether docker is installed and running - don't prompt if it is
+        if [[ "$ISACT" != "active" ]]; then
+
+            echo ""
+            checkForUpdates
+            echo ""
+
+            echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
+            
+            (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
+                spinner $!
+            echo ""
+            echo " The installation of Docker Engine is complete and the version installed was - "
+            DOCKERV=$(docker -v)
+            echo "    "${DOCKERV}
+            
+            echo ""
+
+            echo " Starting the Docker Service"
+            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+    
+            echo " Adding this user account to the docker group for getting necessary permissions."      
+            (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker appears to be already installed and running in this system."
+            echo ""
+        fi
+
+        if [[ "$ISCOMP" == *"command not found"* ]]; then
+            echo " The script will now install the stable version of Docker-Compose."        
+            (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
+            echo ""
+            echo " The installation of Docker-Compose is also done. The version installed was - " 
+            DOCKCOMPV=$(docker-compose --version)
+            echo "   "${DOCKCOMPV}
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker-compose appears to be already installed."
+            echo ""
+        fi
+            # Enabling docker to start automatically on hardware reboot
+            echo " Enabling the Docker service to start automatically on boot."
+            (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            echo "Done."
+    }
+
+    installportainer ()
+    {
+      #Defining a spinner function beforehand to denote progress instead of showing output.
+      spinner()
+      {
+          local pid=$1
+          local delay=0.50
+          local spinstr='/-\|'
+          while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+              local temp=${spinstr#?}
+              printf " [%c]  " "${spinstr}"
+              local spinstr=${temp}${spinstr%"$temp"}
+              sleep ${delay}
+              printf "\b\b\b\b\b\b"
+          done
+          printf "    \b\b\b\b"
+      }
+
+      #Portainer installation
+      PTAIN_FULLCE ()
+      {
+        echo "Installing Portainer's Community Edition."
         (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
         (sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-echo ""
-echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
-echo ""
-echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
-echo ""
-echo " That's it $username, the installation of Docker, Docker-Compose, and Portainer is over. Thank you for using the script." 
-echo ""
-echo ""
-sleep 1s
-#LocalIP - ip a | grep "scope global" | head -1 | awk '{print $2}' | sed 's|/.*||'
-#CloudIP - host myip.opendns.com resolver1.opendns.com | grep "myip.opendns.com has" | awk '{print $4}'
-    exit 1
+        spinner $!
+        echo ""
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
+        echo ""
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
+        echo ""
+      }
+
+      PTAIN_AGNT ()
+      {
+        echo "Installing Portainer Agent."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (sudo docker run -d -p 9001:9001 --name portainer_agent --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker/volumes:/var/lib/docker/volumes portainer/agent) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " From your main Portainer or Portainer-CE instance, add this Agent instance via the 'Endpoints' option in the left menu."
+        echo " Use the IP ${CLOUDIP} port 9001 and also check if you need Port Forwarding enabled in your network."
+        echo ""
+      }
+
+      PTAIN_FULLBE ()
+      {
+        echo "Installing Portainer's Business Edition."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ee:latest) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
+        echo ""
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
+        echo ""
+      }
+
+      #Setting up a function to see if Portainer already exists from any previous installation.
+      PTAINCE_CHECK ()
+      {
+            portainerce_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerce_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerce_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLCE
+          fi
+      }
+
+      PTAINBE_CHECK ()
+      {
+            portainerbe_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerbe_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerbe_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLBE
+          fi
+      }
+
+      PTAINAG_CHECK ()
+      {
+            portainerag_check=$( docker ps -a -f name=portainer_agent | grep portainer_agent 2> /dev/null )
+          if [[ ! -z ${portainerag_check} ]]; then 
+            echo "A container with a name: Portainer Agent already exists and has status: $( echo ${portainerag_check} | awk '{ print $7 }' ), so skipping the Agent installation."
+          else
+            PTAIN_AGNT
+          fi
+      }
+
+      PTAIN_CHOICES=$(whiptail --title "Portainer Selection" --menu "Choose an option" 20 110 7 \
+        "1" "Community Edition - Standard installation of Portainer's free edition" \
+        "2" "Portainer Agent - Installation of just the Agent service to connect to other Portainer instances." \
+        "3" "Business Edition - Installation of Portainer's Business Edition." \
+        "4" "Nevermind, I don't need Portainer to be setup now." 3>&1 1>&2 2>&3)
+
+      if [ -z "$PTAIN_CHOICES" ]; then
+        echo "No option was selected, the installer will exit now."
+      else
+        for PTAIN_CHOICE in $PTAIN_CHOICES; do
+          case "$PTAIN_CHOICE" in
+          "1")
+            PTAINCE_CHECK
+            ;;
+          "2")
+            PTAINAG_CHECK
+            ;;
+          "3")
+            PTAINBE_CHECK
+            ;;
+          "4")
+            exit 1
+            ;;
+          *)
+            echo "Unsupported item $PTAIN_CHOICE!" >&2
+            exit 1
+            ;;
+          esac
+        done
+      fi
+    }
+
+  echo ""
+  echo ""
+  echo "  ____             _               ____       _               ";
+  echo " |  _ \  ___   ___| | _____ _ __  / ___|  ___| |_ _   _ _ __  ";
+  echo " | | | |/ _ \ / __| |/ / _ \ '__| \___ \ / _ \ __| | | | '_ \ ";
+  echo " | |_| | (_) | (__|   <  __/ |     ___) |  __/ |_| |_| | |_) |";
+  echo " |____/ \___/ \___|_|\_\___|_|    |____/ \___|\__|\__,_| .__/ ";
+  echo "                                                       |_|    ";
+  echo ""
+  echo ""
+
+  echo " You have chosen to install Docker, Docker-Compose and Portainer."
+
+  DockCheck
+
+  echo ""
+
+  echo " Let's now complete this setup by installing Portainer"
+
+  # Installing portainer for Docker GUI Management
+  installportainer
+
+  echo ""
+  echo " That's it $username, the installation of Docker, Docker-Compose, and Portainer is over. Thank you for using the script." 
+  echo ""
+  echo ""
+  cd
+  exit 1
+
 }
 
 installNxtCld()
 {
-    clear
+  clear
 
-    ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
-    ISCOMP=$( (docker-compose -v ) 2>&1 )
+    #Defining a spinner function beforehand to denote progress instead of showing output.
+    spinner()
+    {
+        local pid=$1
+        local delay=0.50
+        local spinstr='/-\|'
+        while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+            local temp=${spinstr#?}
+            printf " [%c]  " "${spinstr}"
+            local spinstr=${temp}${spinstr%"$temp"}
+            sleep ${delay}
+            printf "\b\b\b\b\b\b"
+        done
+        printf "    \b\b\b\b"
+    }
+
+    #Updates check
+    checkForUpdates() 
+    {
+        #Running apt-get update to check for the updates available and also caching the number of packages that can be
+        #upgraded and advising the user to upgrade after the installation. To avoid issues with minimal output in Ubuntu.
+
+        timestamp=$(stat -c %Y /var/cache/apt/)
+        timestampAsDate=$(date -d @"$timestamp" "+%b %e")
+        today=$(date "+%b %e")
+
+        if [ ! "$today" == "$timestampAsDate" ]; then
+            #update package lists
+            echo ""
+            echo -n " Hey $username, it seems that the package updates has not been run today. So, I am running them now."
+            $SUDO apt-get -qq update & spinner $!
+            echo " It's Done."
+        fi
+        echo ""
+        echo -n " Checking the repository for upgraded packages."
+        updatesToInstall=$($SUDO apt-get -s -o Debug::NoLocking=true upgrade | grep -c ^Inst)
+        echo " Done!"
+        echo ""
+        if [[ $updatesToInstall -eq "0" ]]; then
+            echo " Your system is up to date! Continuing with the installation."
+        else
+            echo " It seems that there are $updatesToInstall updates availible for your system."
+            echo " Please make sure that you run 'sudo apt-get upgrade' after this installation completes. "
+            echo ""
+        fi
+        echo ""
+        echo " Checking dependencies:"
+
+        dependencies=( git wget grep dnsutils expect whiptail )
+        for i in "${dependencies[@]}"; do
+            echo -n "    Checking for $i."
+            if [ "$(dpkg-query -W -f='${Status}' "$i" 2>> ~/docker/homelab-install-script.log | grep -c "ok installed")" -eq 0 ]; then
+                echo -n " Required packages are not found! Installing them now."
+                #Supply answers to the questions so we don't prompt user
+                if [[ $i == "expect" ]]; then
+                    ($SUDO apt-get --yes --quiet --no-install-recommends install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                else
+                    ($SUDO apt-get --yes --quiet install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                fi
+                echo " Done."
+            else
+                echo " Dependencies are already installed! Let's continue."
+            fi
+        done
+    }
+
+    DockCheck()
+    {
+        ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
+        ISCOMP=$( (docker-compose -v ) 2>&1 )
+
+        #### Try to check whether docker is installed and running - don't prompt if it is
+        if [[ "$ISACT" != "active" ]]; then
+
+          echo ""
+          checkForUpdates
+          echo ""
+
+          echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
+          
+          (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
+              spinner $!
+          echo ""
+          echo " The installation of Docker Engine is complete and the version installed was - "
+          DOCKERV=$(docker -v)
+          echo "    "${DOCKERV}
+          
+          echo ""
+
+          echo " Starting the Docker Service"
+          (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+          echo ""
+  
+          echo " Adding this user account to the docker group for getting necessary permissions."      
+          (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
+          echo ""
+            
+        else
+            echo ""
+            echo " Docker appears to be already installed and running in this system."
+            echo ""
+        fi
+
+        if [[ "$ISCOMP" == *"command not found"* ]]; then
+            echo " The script will now install the stable version of Docker-Compose."        
+            (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
+            echo ""
+            echo " The installation of Docker-Compose is also done. The version installed was - " 
+            DOCKCOMPV=$(docker-compose --version)
+            echo "   "${DOCKCOMPV}
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker-compose appears to be already installed."
+            echo ""
+        fi
+            # Enabling docker to start automatically on hardware reboot
+            echo " Enabling the Docker service to start automatically on boot."
+            (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            echo "Done."
+    }
+
+    installportainer ()
+    {
+      #Defining a spinner function beforehand to denote progress instead of showing output.
+      spinner()
+      {
+          local pid=$1
+          local delay=0.50
+          local spinstr='/-\|'
+          while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+              local temp=${spinstr#?}
+              printf " [%c]  " "${spinstr}"
+              local spinstr=${temp}${spinstr%"$temp"}
+              sleep ${delay}
+              printf "\b\b\b\b\b\b"
+          done
+          printf "    \b\b\b\b"
+      }
+
+      #Portainer installation
+      PTAIN_FULLCE ()
+      {
+        echo "Installing Portainer's Community Edition."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
+        echo ""
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
+        echo ""
+      }
+
+      PTAIN_AGNT ()
+      {
+        echo "Installing Portainer Agent."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (sudo docker run -d -p 9001:9001 --name portainer_agent --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker/volumes:/var/lib/docker/volumes portainer/agent) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " From your main Portainer or Portainer-CE instance, add this Agent instance via the 'Endpoints' option in the left menu."
+        echo " Use the IP ${CLOUDIP} port 9001 and also check if you need Port Forwarding enabled in your network."
+        echo ""
+      }
+
+      PTAIN_FULLBE ()
+      {
+        echo "Installing Portainer's Business Edition."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ee:latest) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
+        echo ""
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
+        echo ""
+      }
+
+      #Setting up a function to see if Portainer already exists from any previous installation.
+      PTAINCE_CHECK ()
+      {
+            portainerce_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerce_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerce_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLCE
+          fi
+      }
+
+      PTAINBE_CHECK ()
+      {
+            portainerbe_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerbe_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerbe_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLBE
+          fi
+      }
+
+      PTAINAG_CHECK ()
+      {
+            portainerag_check=$( docker ps -a -f name=portainer_agent | grep portainer_agent 2> /dev/null )
+          if [[ ! -z ${portainerag_check} ]]; then 
+            echo "A container with a name: Portainer Agent already exists and has status: $( echo ${portainerag_check} | awk '{ print $7 }' ), so skipping the Agent installation."
+          else
+            PTAIN_AGNT
+          fi
+      }
+
+      PTAIN_CHOICES=$(whiptail --title "Portainer Selection" --menu "Choose an option" 20 110 7 \
+        "1" "Community Edition - Standard installation of Portainer's free edition" \
+        "2" "Portainer Agent - Installation of just the Agent service to connect to other Portainer instances." \
+        "3" "Business Edition - Installation of Portainer's Business Edition." \
+        "4" "Nevermind, I don't need Portainer to be setup now." 3>&1 1>&2 2>&3)
+
+      if [ -z "$PTAIN_CHOICES" ]; then
+        echo "No option was selected, the installer will exit now."
+      else
+        for PTAIN_CHOICE in $PTAIN_CHOICES; do
+          case "$PTAIN_CHOICE" in
+          "1")
+            PTAINCE_CHECK
+            ;;
+          "2")
+            PTAINAG_CHECK
+            ;;
+          "3")
+            PTAINBE_CHECK
+            ;;
+          "4")
+            exit 1
+            ;;
+          *)
+            echo "Unsupported item $PTAIN_CHOICE!" >&2
+            exit 1
+            ;;
+          esac
+        done
+      fi
+    }
 
 echo ""
 echo ""
@@ -152,191 +555,65 @@ echo "                                                                 ";
 echo ""
 echo ""
 
-#### Try to check whether docker is installed and running - don't prompt if it is
-if [[ "$ISACT" != "active" ]]; then
-        echo " Okay $username, let's start by installing the system updates. This could take a while."
-        (sudo apt update && sudo apt upgrade -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The updates are done. Now the system is installing some prerequisite packages."
-        sleep 2s
-        echo ""
-        (sudo apt install curl wget git -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
-        sleep 2s
-        (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The installation of Docker Engine is complete and the version installed was - "
-        DOCKERV=$(docker -v)
-        echo "    "${DOCKERV}
-        sleep 3s
-        echo ""
-        echo " Starting the Docker Service"
-        (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        echo " Adding this user account to the docker group for getting necessary permissions."
-        sleep 2s
-        (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 3s
-    else
-        echo ""
-        echo " Docker appears to be already installed and running in this system."
-        echo ""
-    fi
+      DockCheck
 
-    if [[ "$ISCOMP" == *"command not found"* ]]; then
-        echo " The script will now install the stable version of Docker-Compose."
-        sleep 2s
-        (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
-        echo ""
-        echo " The installation of Docker-Compose is also done. The version installed was - " 
-        DOCKCOMPV=$(docker-compose --version)
-        echo "   "${DOCKCOMPV}
-        echo ""
-        sleep 3s
-    else
-        echo ""
-        echo " Docker-compose appears to be already installed."
-        echo ""
-    fi
-        # Enabling docker to start automatically on hardware reboot
-        echo " Enabling the Docker service to start automatically on boot."
-        (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 1s
-        # Installing portainer for Docker GUI Management
-        echo " Installing Portainer's community edition image."
-        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
-        (sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " Installing Nextcloud AIO Image."
-        echo ""
-        # Pull the Nextcloud docker-compose file from github
-        echo " Pulling a default Nextcloud docker-compose.yml file."
-        sudo mkdir -p docker/nextcloud
-        cd docker/nextcloud
-        echo ""
-        echo " Now you need to provide the path of the directory to store your files and folders in Nextcloud."
-        echo ""
-        echo " Provide the path in the format of '/data/path' without the trailing '/'. If the folder doesn't exist, it will automatically be created."
-        echo " Eg: /home/${USER}/data (or) /mnt/data/nxtcld "
-        echo ""
-        read -rp " Specify the path to store Nextcloud data on: " NXTPTH
-        sudo mkdir "$NXTPTH" -p
-        sleep 1s
-        sudo chown -R 33:0 "$NXTPTH"
-        sudo chmod -R 750 "$NXTPTH"
-        sleep 1s
-        echo ""
-        echo " Running the docker commands to install and start Nextcloud instance."
-        echo ""
+      echo ""
+      echo " Let's now proceed with installing the Nextcloud AIO Image."
+      echo ""
+      echo " Portainer setup will follow later on."
+      echo ""
+      # Pull the Nextcloud docker-compose file from github
+      echo " Pulling a default Nextcloud docker-compose.yml file."
+      (sudo mkdir -p docker/nextcloud)
+      cd docker/nextcloud
+      echo ""
+
+      NXTPTH=$(whiptail --inputbox --title "Path Selection" "Now you need to provide the path of the directory to store your files and folders in Nextcloud.\nProvide the path in the format of '/data/path' without the trailing '/'. If the folder doesn't exist, it will automatically be created.\nEg: /home/${USER}/data (or) /mnt/data/nxtcld" 20 110 3>&1 1>&2 2>&3)
+
+      echo ""
+      (sudo mkdir "$NXTPTH" -p)>/dev/null        
+      (sudo chown -R 33:0 "$NXTPTH")>/dev/null
+      (sudo chmod -R 750 "$NXTPTH")>/dev/null
+      
+      echo ""
+      echo " Running the docker commands to install and start Nextcloud instance."
+      echo ""
+      
+      ARCH=$( (uname -m ) 2>&1 )
+
+      if [[ "$ARCH" == "x86_64" || "$ARCH" == "AMD64"|| "$ARCH" == "i386" || "$ARCH" == "i486" || "$ARCH" == "i586" || "$ARCH" == "i686" ]]; then
+
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudx86-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
         
-        ARCH=$( (uname -m ) 2>&1 )
-
-        if [[ "$ARCH" == "x86_64" || "$ARCH" == "i386" || "$ARCH" == "i486" || "$ARCH" == "i586" || "$ARCH" == "i686" ]]; then
-
-        sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudx86-docker-compose.yml -o docker-compose.yml >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
 
+        #Replacing the placeholder texts with user provided inputs.
         (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         
-        #(sudo docker run -d --name nextcloud-aio-mastercontainer --restart always -p 80:80 -p 8080:8080 -p 8443:8443 -e NEXTCLOUD_DATADIR=$NXTPTH --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config --volume /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest) >> ~/docker/homelab-install-script.log 2>&1 &
-        
-        sleep 3s
+        #(sudo docker run -d --name nextcloud-aio-mastercontainer --restart always -p 80:80 -p 8080:8080 -p 8443:8443 -e NEXTCLOUD_DATADIR=$NXTPTH --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config --volume /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest) >> ~/docker/homelab-install-script.log 2>&1 &      
 
         (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
+        spinner $!
 
-        fi
+      fi
 
-        if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm" || "$ARCH" == "arm64" || "$ARCH" == "armv8" ]]; then
+      if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm" || "$ARCH" == "arm64" || "$ARCH" == "armv8" ]]; then
 
-        sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudarm64-docker-compose.yml -o docker-compose.yml >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
+        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Nextcloud%20AIO%20Package/nextcloudarm64-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1 
 
         (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
         
-        sleep 1s
-
+        #Replacing the placeholder texts with user provided inputs.
         (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
         (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
@@ -345,2126 +622,2181 @@ if [[ "$ISACT" != "active" ]]; then
 
         #(sudo docker run -d --name nextcloud-aio-mastercontainer --restart always -p 80:80 -p 8080:8080 -p 8443:8443 -e NEXTCLOUD_DATADIR=$NXTPTH --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config --volume /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest-arm64) >> ~/docker/homelab-install-script.log 2>&1 &
         
-        sleep 3s
-
         (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
+        spinner $!
 
-        fi
+      fi
 
-    echo ""
-    echo " Navigate to https://${LOCALIP}:8080 to start the Nextcloud AIO setup"
-    echo ""
-    echo " Nextcloud recommends setting up the instance with a domain name and the AIO container is configured to get SSL certificates automatically."
-    echo ""
-    echo " That's it $username, the installation of Nextcloud is complete and you can now start using your own storage cloud." 
-    echo ""
-    echo ""
-sleep 1s
-    cd
-    exit 1
-
+      echo ""
+      echo "Let's now complete this setup by installing Portainer"
+      echo ""
+      installportainer
+      echo ""
+      echo ""
+      echo " Navigate to https://${LOCALIP}:8080 to start the Nextcloud AIO setup"
+      echo ""
+      echo " Nextcloud recommends setting up the instance with a domain name and the AIO container is configured to get SSL certificates automatically."
+      echo ""
+      echo " That's it $username, the installation of Nextcloud is complete and you can now start using your own storage cloud." 
+      echo ""
+      echo ""
+      cd
+      exit 1
 }
 
 installMSP()
 {
-    clear
-echo ""
-echo ""
-echo "  __  __          _ _         ____                             ____            _                    ";
-echo " |  \/  | ___  __| (_) __ _  / ___|  ___ _ ____   _____ _ __  |  _ \ __ _  ___| | ____ _  __ _  ___ ";
-echo " | |\/| |/ _ \/ _\'| |/ _\'| \___ \ / _ | '__\ \ / / _ | '__| | |_) / _\'|/ __| |/ / _\'|/ _\' |/ _|";
-echo " | |  | |  __| (_| | | (_| |  ___) |  __| |   \ V |  __| |    |  __| (_| | (__|   | (_| | (_| || __|";
-echo " |_|  |_|\___|\__,_|_|\__,_| |____/ \___|_|    \_/ \___|_|    |_|   \__,_|\___|_|\_\__,_|\__, |\___|";
-echo "                                                                                         |___/      ";
-echo ""
-echo ""
+  clear
 
-echo " This script will now install the latest version of Docker and other applications to manage your home media collection."
-echo ""       
-echo " Please provide the path of the directory where you want the applications to be installed and the media files reside. This is required for proper configuration."
-echo " If there are no media files presently, the folders will be created for future use. "
-echo ""
-echo " Provide the path in the format of '/data/path' without the trailing '/'"
-echo " Eg: /docker/apps (or) /home/$USER/movies etc. "
-echo ""
-echo ""
-        read -rp " Specify the path to install the applications: " INSPTH
-        sudo mkdir "$INSPTH" -p
-        sleep 1s
-        echo ""
-        read -rp " Specify the path to Movies: " MOVPTH
-        sudo mkdir "$MOVPTH" -p
-        sleep 1s
-        echo ""
-        read -rp " Specify the path to TV Shows: " SHWPTH
-        sudo mkdir "$SHWPTH" -p
-        sleep 1s
-        echo ""
-        read -rp " Specify the path to Downloads: " DWNPTH
-        sudo mkdir "$DWNPTH" -p
-        sleep 1s
-        echo ""
-echo " Thank you for the input. Just a few more choices left to make."
-echo "" 
-echo " When prompted, please select 'y' for each item you would like to install."
-echo ""
-sleep 1s
-echo ""
-echo " Plex is the backbone for organizing and streaming the media that we have in home."
-read -rp "Install Plex? (y/n): " PLX
-sleep 1s
-echo ""
-echo " Tautulli monitors the Plex activity and collect the statistics "
-read -rp "Install Tautulli? (y/n): " TLI
-sleep 1s
-echo ""
-echo " Sonarr is a collection manager for TV Shows and Web Series "
-read -rp "Install Sonarr? (y/n): " SNR
-sleep 1s
-echo ""
-echo " Radarr is a collection manager for Movies "
-read -rp "Install Radarr? (y/n): " RDR
-sleep 1s
-echo ""
-echo " Sabnzbd is a USENET client/downloader "
-read -rp "Install Sabnzbd? (y/n): " SZBD
-sleep 1s
-echo ""
-echo " Deluge is a torrent tracker and downloader "
-read -rp "Install Deluge? (y/n): " DLG
-sleep 1s
-echo ""
-echo " Overseerr is a media discovery and request manager for Plex "
-read -rp "Install Overseerr? (y/n): " OVSR
-sleep 1s
-echo ""
-echo " Jackett is a bridge for apps listed above to communicate with the torrent indexers of your choice "
-read -rp "Install Jackett? (y/n): " JKT
-sleep 1s
-echo ""
-echo " Watchtower checks for and updates all the docker applications on a regular basis."
-read -rp "Install Watchtower? (y/n): " WTR
-sleep 1s
-echo ""
-echo ""
-            echo " Okay $username, I got the list of apps to install. Let's start by installing the system updates."
-            echo " Please note that this could take a while."
+    #Defining a spinner function beforehand to denote progress instead of showing output.
+    spinner()
+    {
+        local pid=$1
+        local delay=0.50
+        local spinstr='/-\|'
+        while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+            local temp=${spinstr#?}
+            printf " [%c]  " "${spinstr}"
+            local spinstr=${temp}${spinstr%"$temp"}
+            sleep ${delay}
+            printf "\b\b\b\b\b\b"
+        done
+        printf "    \b\b\b\b"
+    }
+
+    #Updates check
+    checkForUpdates() 
+    {
+        #Running apt-get update to check for the updates available and also caching the number of packages that can be
+        #upgraded and advising the user to upgrade after the installation. To avoid issues with minimal output in Ubuntu.
+
+        timestamp=$(stat -c %Y /var/cache/apt/)
+        timestampAsDate=$(date -d @"$timestamp" "+%b %e")
+        today=$(date "+%b %e")
+
+        if [ ! "$today" == "$timestampAsDate" ]; then
+            #update package lists
             echo ""
-    ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
-    ISCOMP=$( (docker-compose -v ) 2>&1 )
+            echo -n " Hey $username, it seems that the package updates has not been run today. So, I am running them now."
+            $SUDO apt-get -qq update & spinner $!
+            echo " It's Done."
+        fi
+        echo ""
+        echo -n " Checking the repository for upgraded packages."
+        updatesToInstall=$($SUDO apt-get -s -o Debug::NoLocking=true upgrade | grep -c ^Inst)
+        echo " Done!"
+        echo ""
+        if [[ $updatesToInstall -eq "0" ]]; then
+            echo " Your system is up to date! Continuing with the installation."
+        else
+            echo " It seems that there are $updatesToInstall updates availible for your system."
+            echo " Please make sure that you run 'sudo apt-get upgrade' after this installation completes. "
+            echo ""
+        fi
+        echo ""
+        echo " Checking dependencies:"
 
-    if [[ "$ISACT" != "active" ]]; then        
-            (sudo apt update && sudo apt upgrade -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The updates are done. Now the system is installing some prerequisite packages."
-        sleep 2s
-        echo ""
-        (sudo apt install curl wget git -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
-        sleep 2s
-        (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The installation of Docker Engine is complete and the version installed was - "
-        DOCKERV=$(docker -v)
-        echo "    "${DOCKERV}
-        sleep 3s
-        echo ""
-        echo " Starting the Docker Service"
-        (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        echo " Adding this user account to the docker group for getting necessary permissions."
-        sleep 2s
-        (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 3s
-    else
-        echo ""
-        echo " Docker appears to be already installed and running in this system."
-        echo ""
-    fi
-
-    if [[ "$ISCOMP" == *"command not found"* ]]; then
-        echo " The script will now install the stable version of Docker-Compose."
-        sleep 2s
-        (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
-        echo ""
-        echo " The installation of Docker-Compose is also done. The version installed was - " 
-        DOCKCOMPV=$(docker-compose --version)
-        echo "   "${DOCKCOMPV}
-        echo ""
-        sleep 3s
-    else
-        echo ""
-        echo " Docker-compose appears to be already installed."
-        echo ""
-    fi
-        # Enabling docker to start automatically on hardware reboot
-        echo " Enabling the Docker service to start automatically on boot."
-        (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 1s
-
-    if [[ "$PLX" == [yY] ]]; then
-        echo "##########################################"
-        echo "###          Installing Plex           ###"
-        echo "##########################################"
-    
-        # Pull the plex docker-compose file from github
-        echo " Pulling a default Plex docker-compose.yml file."
-
-        sudo mkdir -p docker/plex
-        cd docker/plex
-        
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/plex-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start Plex Media Server"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
+        dependencies=( git wget grep dnsutils expect whiptail )
+        for i in "${dependencies[@]}"; do
+            echo -n "    Checking for $i."
+            if [ "$(dpkg-query -W -f='${Status}' "$i" 2>> ~/docker/homelab-install-script.log | grep -c "ok installed")" -eq 0 ]; then
+                echo -n " Required packages are not found! Installing them now."
+                #Supply answers to the questions so we don't prompt user
+                if [[ $i == "expect" ]]; then
+                    ($SUDO apt-get --yes --quiet --no-install-recommends install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                else
+                    ($SUDO apt-get --yes --quiet install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                fi
+                echo " Done."
+            else
+                echo " Dependencies are already installed! Let's continue."
+            fi
         done
-        printf "\r"
-        echo "" 
-        echo " Go to http://${LOCALIP}:32400/web/index.html to setup your Plex account and the instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
+    }
 
-    if [[ "$TLI" == [yY] ]]; then
-        echo "##########################################"
-        echo "###        Installing Tautulli         ###"
-        echo "##########################################"
+    DockCheck()
+    {
+        ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
+        ISCOMP=$( (docker-compose -v ) 2>&1 )
+
+        #### Try to check whether docker is installed and running - don't prompt if it is
+        if [[ "$ISACT" != "active" ]]; then
+
+        echo ""
+        checkForUpdates
+        echo ""
+
+            echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
+            
+            (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
+                spinner $!
+            echo ""
+            echo " The installation of Docker Engine is complete and the version installed was - "
+            DOCKERV=$(docker -v)
+            echo "    "${DOCKERV}
+            
+            echo ""
+
+            echo " Starting the Docker Service"
+            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
     
-        # Pull the tautulli docker-compose file from github
-        echo " Pulling a default tautulli docker-compose.yml file."
-
-        sudo mkdir -p docker/tautulli
-        cd docker/tautulli
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/tautulli-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start Tautulli"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:8181 to setup your Tautulli with you Plex account."
-        echo ""       
-        sleep 3s
-        cd
-    fi 
-
-    if [[ "$SNR" == [yY] ]]; then
-        echo "##########################################"
-        echo "###         Installing Sonarr          ###"
-        echo "##########################################"
-    
-        # Pull the Sonarr docker-compose file from github
-        echo " Pulling a default Sonarr docker-compose.yml file."
-
-        sudo mkdir -p docker/sonarr
-        cd docker/sonarr
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/sonarr-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start Sonarr"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:8989 to setup your Sonarr instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$RDR" == [yY] ]]; then
-        echo "##########################################"
-        echo "###         Installing Radarr          ###"
-        echo "##########################################"
-    
-        # Pull the Radarr docker-compose file from github
-        echo " Pulling a default Radarr docker-compose.yml file."
-
-        sudo mkdir -p docker/radarr
-        cd docker/radarr
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/radarr-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start Radarr"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:7878 to setup your Radarr instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$SZBD" == [yY] ]]; then
-        echo "##########################################"
-        echo "###        Installing Sabnzbd          ###"
-        echo "##########################################"
-    
-        # Pull the Sabnzbd docker-compose file from github
-        echo " Pulling a default Sabnzbd docker-compose.yml file."
-
-        sudo mkdir -p docker/sabnzbd
-        cd docker/sabnzbd
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/sabnzbd-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start Sabnzbd"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:8080 to setup your Sabnzbd instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$DLG" == [yY] ]]; then
-        echo "##########################################"
-        echo "###         Installing Deluge          ###"
-        echo "##########################################"
-    
-        # Pull the Deluge docker-compose file from github
-        echo " Pulling a default Deluge docker-compose.yml file."
-
-        sudo mkdir -p docker/deluge
-        cd docker/deluge
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/deluge-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start Deluge"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:8112 to setup Deluge instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$OVSR" == [yY] ]]; then
-        echo "##########################################"
-        echo "###        Installing Overseerr        ###"
-        echo "##########################################"
-    
-        # Pull the Overseerr docker-compose file from github
-        echo " Pulling a default Overseerr docker-compose.yml file."
-
-        sudo mkdir -p docker/overseerr
-        cd docker/overseerr
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/overseerr-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start Overseerr"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:5055 to setup the Overseerr instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$JKT" == [yY] ]]; then
-        echo "##########################################"
-        echo "###         Installing Jackett         ###"
-        echo "##########################################"
-    
-        # Pull the Jackett docker-compose file from github
-        echo " Pulling a default Jackett docker-compose.yml file."
-
-        sudo mkdir -p docker/jackett
-        cd docker/jackett
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/jackett-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-        
-        echo " Running the docker-compose.yml to install and start Jackett"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:9117 to setup the Jackett instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$WTR" == [yY] ]]; then
-        echo "##########################################"
-        echo "###       Installing Watchtower        ###"
-        echo "##########################################"
-    
-        # Pull the Watchtower docker-compose file from github
-        echo " Pulling a default Watchtower docker-compose.yml file."
-
-        sudo mkdir -p docker/watchtower
-        cd docker/watchtower
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/watchtower-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start Watchtower"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Once installed, the Watchtower instance will automatically start checking for updates to the applications once every 24 hours."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-        # Installing portainer for Docker GUI Management
-        echo " Finishing up by installing Portainer's community edition image."
+            echo " Adding this user account to the docker group for getting necessary permissions."      
+            (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker appears to be already installed and running in this system."
+            echo ""
+        fi
+
+        if [[ "$ISCOMP" == *"command not found"* ]]; then
+            echo " The script will now install the stable version of Docker-Compose."        
+            (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
+            echo ""
+            echo " The installation of Docker-Compose is also done. The version installed was - " 
+            DOCKCOMPV=$(docker-compose --version)
+            echo "   "${DOCKCOMPV}
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker-compose appears to be already installed."
+            echo ""
+        fi
+            # Enabling docker to start automatically on hardware reboot
+            echo " Enabling the Docker service to start automatically on boot."
+            (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            echo "Done."
+    }
+
+    installportainer ()
+    {
+      #Defining a spinner function beforehand to denote progress instead of showing output.
+      spinner()
+      {
+          local pid=$1
+          local delay=0.50
+          local spinstr='/-\|'
+          while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+              local temp=${spinstr#?}
+              printf " [%c]  " "${spinstr}"
+              local spinstr=${temp}${spinstr%"$temp"}
+              sleep ${delay}
+              printf "\b\b\b\b\b\b"
+          done
+          printf "    \b\b\b\b"
+      }
+
+      #Portainer installation
+      PTAIN_FULLCE ()
+      {
+        echo "Installing Portainer's Community Edition."
         (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
         (sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-echo ""
-echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker instance."
-echo ""
-echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
-echo ""
-echo " That's it $username, the installation of Media Server Package is over. Thank you for using the script." 
-echo ""
-echo ""
-sleep 1s
+        spinner $!
+        echo ""
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
+        echo ""
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
+        echo ""
+      }
 
-exit 1
+      PTAIN_AGNT ()
+      {
+        echo "Installing Portainer Agent."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (sudo docker run -d -p 9001:9001 --name portainer_agent --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker/volumes:/var/lib/docker/volumes portainer/agent) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " From your main Portainer or Portainer-CE instance, add this Agent instance via the 'Endpoints' option in the left menu."
+        echo " Use the IP ${CLOUDIP} port 9001 and also check if you need Port Forwarding enabled in your network."
+        echo ""
+      }
 
+      PTAIN_FULLBE ()
+      {
+        echo "Installing Portainer's Business Edition."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ee:latest) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
+        echo ""
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
+        echo ""
+      }
+
+      #Setting up a function to see if Portainer already exists from any previous installation.
+      PTAINCE_CHECK ()
+      {
+            portainerce_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerce_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerce_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLCE
+          fi
+      }
+
+      PTAINBE_CHECK ()
+      {
+            portainerbe_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerbe_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerbe_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLBE
+          fi
+      }
+
+      PTAINAG_CHECK ()
+      {
+            portainerag_check=$( docker ps -a -f name=portainer_agent | grep portainer_agent 2> /dev/null )
+          if [[ ! -z ${portainerag_check} ]]; then 
+            echo "A container with a name: Portainer Agent already exists and has status: $( echo ${portainerag_check} | awk '{ print $7 }' ), so skipping the Agent installation."
+          else
+            PTAIN_AGNT
+          fi
+      }
+
+      PTAIN_CHOICES=$(whiptail --title "Portainer Selection" --menu "Choose an option" 20 110 7 \
+        "1" "Community Edition - Standard installation of Portainer's free edition" \
+        "2" "Portainer Agent - Installation of just the Agent service to connect to other Portainer instances." \
+        "3" "Business Edition - Installation of Portainer's Business Edition." \
+        "4" "Nevermind, I don't need Portainer to be setup now." 3>&1 1>&2 2>&3)
+
+      if [ -z "$PTAIN_CHOICES" ]; then
+        echo "No option was selected, the installer will exit now."
+      else
+        for PTAIN_CHOICE in $PTAIN_CHOICES; do
+          case "$PTAIN_CHOICE" in
+          "1")
+            PTAINCE_CHECK
+            ;;
+          "2")
+            PTAINAG_CHECK
+            ;;
+          "3")
+            PTAINBE_CHECK
+            ;;
+          "4")
+            exit 1
+            ;;
+          *)
+            echo "Unsupported item $PTAIN_CHOICE!" >&2
+            exit 1
+            ;;
+          esac
+        done
+      fi
+    }
+
+    installPlex()
+    {
+            
+            echo "          Installing Plex           "
+            
+        
+            # Pull the plex docker-compose file from github
+            echo " Pulling a default Plex docker-compose.yml file."
+
+            sudo mkdir -p docker/plex
+            cd docker/plex
+            
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/plex-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Plex Media Server"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo "" 
+            echo " Go to http://${LOCALIP}:32400/web/index.html to setup your Plex account and the instance."
+            echo ""       
+            cd
+    }
+
+    installTautulli()
+    {
+            
+            echo "        Installing Tautulli         "
+            
+        
+            # Pull the tautulli docker-compose file from github
+            echo " Pulling a default tautulli docker-compose.yml file."
+
+            sudo mkdir -p docker/tautulli
+            cd docker/tautulli
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/tautulli-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Tautulli"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:8181 to setup your Tautulli with you Plex account."
+            echo ""               
+            cd
+    }
+
+    installSonarr()
+    {
+            
+            echo "         Installing Sonarr          "
+            
+        
+            # Pull the Sonarr docker-compose file from github
+            echo " Pulling a default Sonarr docker-compose.yml file."
+
+            sudo mkdir -p docker/sonarr
+            cd docker/sonarr
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/sonarr-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Sonarr"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:8989 to setup your Sonarr instance."
+            echo ""        
+            cd
+    }
+
+    installRadarr()
+    {
+            
+            echo "         Installing Radarr          "
+            
+        
+            # Pull the Radarr docker-compose file from github
+            echo " Pulling a default Radarr docker-compose.yml file."
+
+            sudo mkdir -p docker/radarr
+            cd docker/radarr
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/radarr-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Radarr"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:7878 to setup your Radarr instance."
+            echo ""       
+            cd
+    }
+
+    installSabnzbd()
+    {
+            
+            echo "        Installing Sabnzbd          "
+            
+        
+            # Pull the Sabnzbd docker-compose file from github
+            echo " Pulling a default Sabnzbd docker-compose.yml file."
+
+            sudo mkdir -p docker/sabnzbd
+            cd docker/sabnzbd
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/sabnzbd-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Sabnzbd"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:8182 to setup your Sabnzbd instance."
+            echo ""       
+            cd
+    }
+
+    installDeluge()
+    {
+            
+            echo "         Installing Deluge          "
+            
+        
+            # Pull the Deluge docker-compose file from github
+            echo " Pulling a default Deluge docker-compose.yml file."
+
+            sudo mkdir -p docker/deluge
+            cd docker/deluge
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/deluge-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Deluge"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:8112 to setup Deluge instance."
+            echo ""         
+            cd
+    }
+
+    installOverseerr()
+    {
+            
+            echo "        Installing Overseerr        "
+            
+        
+            # Pull the Overseerr docker-compose file from github
+            echo " Pulling a default Overseerr docker-compose.yml file."
+
+            sudo mkdir -p docker/overseerr
+            cd docker/overseerr
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/overseerr-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Overseerr"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:5055 to setup the Overseerr instance."
+            echo ""        
+            cd
+    }
+
+    installJackett()
+    {
+            
+            echo "         Installing Jackett         "
+            
+        
+            # Pull the Jackett docker-compose file from github
+            echo " Pulling a default Jackett docker-compose.yml file."
+
+            sudo mkdir -p docker/jackett
+            cd docker/jackett
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/jackett-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Jackett"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:9117 to setup the Jackett instance."
+            echo ""          
+            cd
+    }
+
+    installWatchT()
+    {
+            
+            echo "       Installing Watchtower        "
+            
+        
+            # Pull the Watchtower docker-compose file from github
+            echo " Pulling a default Watchtower docker-compose.yml file."
+
+            sudo mkdir -p docker/watchtower
+            cd docker/watchtower
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/watchtower-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Watchtower"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Once installed, the Watchtower instance will automatically start checking for updates to the applications once every 24 hours."
+            echo ""  
+            cd
+    }
+
+  echo ""
+  echo ""
+  echo "  __  __          _ _         ____                             ____            _                    ";
+  echo " |  \/  | ___  __| (_) __ _  / ___|  ___ _ ____   _____ _ __  |  _ \ __ _  ___| | ____ _  __ _  ___ ";
+  echo " | |\/| |/ _ \/ _\'| |/ _\'| \___ \ / _ | '__\ \ / / _ | '__| | |_) / _\'|/ __| |/ / _\'|/ _\' |/ _|";
+  echo " | |  | |  __| (_| | | (_| |  ___) |  __| |   \ V |  __| |    |  __| (_| | (__|   | (_| | (_| || __|";
+  echo " |_|  |_|\___|\__,_|_|\__,_| |____/ \___|_|    \_/ \___|_|    |_|   \__,_|\___|_|\_\__,_|\__, |\___|";
+  echo "                                                                                         |___/      ";
+  echo ""
+  echo ""
+
+  echo " This script will now install the latest version of Docker and other applications to manage your home media collection."
+  echo ""
+  whiptail --msgbox --title "Path Selection" "Please provide the path of the directory where you want the applications to be installed and the media files reside.
+  
+  If there are no media files presently, the folders will be created for future use.
+  
+  Provide the path in the format of '/data/path' without the trailing '/' \n Eg: /docker/apps (or) /home/$USER/movies etc." 20 110 3>&1 1>&2 2>&3       
+  echo ""
+  INSPTH=$(whiptail --inputbox --title "Installation Path" "Specify the path to install the applications:" 20 110 3>&1 1>&2 2>&3)
+  MOVPTH=$(whiptail --inputbox --title "Media Path" "Specify the path to Movies:" 20 110 3>&1 1>&2 2>&3)
+  SHWPTH=$(whiptail --inputbox --title "Media Path" "Specify the path to TV Shows:" 20 110 3>&1 1>&2 2>&3)
+  DWNPTH=$(whiptail --inputbox --title "Media Path" "Specify the path to Downloads:" 20 110 3>&1 1>&2 2>&3)
+  echo ""
+  (sudo mkdir "$INSPTH" -p)
+  (sudo mkdir "$MOVPTH" -p)
+  (sudo mkdir "$SHWPTH" -p)
+  (sudo mkdir "$DWNPTH" -p)
+  echo ""
+  echo " Thank you for the input. Now you'll see a screen from which you need to select the applications that you'd like to have installed."
+  echo " Just use the arrow keys for navigation and space bar to select/unselect the items." 
+  echo ""       
+          # Installing Docker, Docker Compose.
+          DockCheck
+  echo ""
+  echo ""
+  MSP_CHOICES=$(whiptail --separate-output --checklist "Choose applications" 18 55 10 \
+    "1" "Plex       " OFF \
+    "2" "Tautulli       " OFF \
+    "3" "Sonarr       " OFF \
+    "4" "Radarr       " OFF \
+    "5" "Sabnzbd        " OFF \
+    "6" "Deluge       " OFF \
+    "7" "Overseerr        " OFF \
+    "8" "Jackett        " OFF \
+    "9" "Watchtower       " OFF 3>&1 1>&2 2>&3)
+
+  if [ -z "$MSP_CHOICES" ]; then
+    echo "No option was chosen (user hit Cancel)"
+  else
+    for MSP_CHOICE in $MSP_CHOICES; do
+      case "$MSP_CHOICE" in
+      "1")
+        installPlex
+        ;;
+      "2")
+        installTautulli
+        ;;
+      "3")
+        installSonarr
+        ;;
+      "4")
+        installRadarr
+        ;;
+      "5")
+        installSabnzbd
+        ;;
+      "6")
+        installDeluge
+        ;;
+      "7")
+        installOverseerr
+        ;;
+      "8")
+        installJackett
+        ;;
+      "9")
+        installWatchT
+        ;;
+      *)
+        echo "Unsupported item $MSP_CHOICE!" >&2
+        exit 1
+        ;;
+      esac
+    done
+  fi
+  echo ""
+          # Installing portainer for Docker GUI Management
+          installportainer
+  echo ""
+  echo " That's it $username, the installation of Media Server Package is over. Thank you for using the script." 
+  echo ""
+  echo ""
+  cd
+  exit 1
 }
-
 
 installWP()
 {
-    clear    
-echo ""
-echo ""
-echo " __        __   _         _ _         ____            _                    ";
-echo " \ \      / ___| |__  ___(_| |_ ___  |  _ \ __ _  ___| | ____ _  __ _  ___ ";
-echo "  \ \ /\ / / _ | '_ \/ __| | __/ _ \ | |_) / _\'|/ __| |/ / _\'|/ _\'|/ _ |";
-echo "   \ V  V |  __| |_) \__ | | ||  __/ |  __| (_| | (__|   | (_| | (_| |  __/";
-echo "    \_/\_/ \___|_.__/|___|_|\__\___| |_|   \__,_|\___|_|\_\__,_|\__, |\___|";
-echo "                                                                |___/      ";
-echo ""
-echo ""
-    ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
-    ISCOMP=$( (docker-compose -v ) 2>&1 )
+  clear    
 
-    #### Try to check whether docker is installed and running - don't prompt if it is
-    if [[ "$ISACT" != "active" ]]; then
-        echo " Okay $username, let's install Docker and Wordpress with a MySQL Database, and also Matomo."
-        echo ""
-        echo " Updating the system prior to starting the installation."
-            (sudo apt update && sudo apt upgrade -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The updates are done. Now the system is installing some prerequisite packages."
-        sleep 2s
-        echo ""
-        (sudo apt install curl wget git -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
-        sleep 2s
-        (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The installation of Docker Engine is complete and the version installed was - "
-        DOCKERV=$(docker -v)
-        echo "    "${DOCKERV}
-        sleep 3s
-        echo ""
-        echo " Starting the Docker Service"
-        (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        echo " Adding this user account to the docker group for getting necessary permissions."
-        sleep 2s
-        (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 3s
-    else
-        echo ""
-        echo " Docker appears to be already installed and running in this system."
-        echo ""
-    fi
+    #Defining a spinner function beforehand to denote progress instead of showing output.
+    spinner()
+    {
+        local pid=$1
+        local delay=0.50
+        local spinstr='/-\|'
+        while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+            local temp=${spinstr#?}
+            printf " [%c]  " "${spinstr}"
+            local spinstr=${temp}${spinstr%"$temp"}
+            sleep ${delay}
+            printf "\b\b\b\b\b\b"
+        done
+        printf "    \b\b\b\b"
+    }
 
-    if [[ "$ISCOMP" == *"command not found"* ]]; then
-        echo " The script will now install the stable version of Docker-Compose."
-        sleep 2s
-        (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
+    #Updates check
+    checkForUpdates() 
+    {
+        #Running apt-get update to check for the updates available and also caching the number of packages that can be
+        #upgraded and advising the user to upgrade after the installation. To avoid issues with minimal output in Ubuntu.
+
+        timestamp=$(stat -c %Y /var/cache/apt/)
+        timestampAsDate=$(date -d @"$timestamp" "+%b %e")
+        today=$(date "+%b %e")
+
+        if [ ! "$today" == "$timestampAsDate" ]; then
+            #update package lists
+            echo ""
+            echo -n " Hey $username, it seems that the package updates has not been run today. So, I am running them now."
+            $SUDO apt-get -qq update & spinner $!
+            echo " It's Done."
+        fi
         echo ""
-        echo " The installation of Docker-Compose is also done. The version installed was - " 
-        DOCKCOMPV=$(docker-compose --version)
-        echo "   "${DOCKCOMPV}
+        echo -n " Checking the repository for upgraded packages."
+        updatesToInstall=$($SUDO apt-get -s -o Debug::NoLocking=true upgrade | grep -c ^Inst)
+        echo " Done!"
         echo ""
-        sleep 3s
-    else
+        if [[ $updatesToInstall -eq "0" ]]; then
+            echo " Your system is up to date! Continuing with the installation."
+        else
+            echo " It seems that there are $updatesToInstall updates availible for your system."
+            echo " Please make sure that you run 'sudo apt-get upgrade' after this installation completes. "
+            echo ""
+        fi
         echo ""
-        echo " Docker-compose appears to be already installed."
+        echo " Checking dependencies:"
+
+        dependencies=( git wget grep dnsutils expect whiptail )
+        for i in "${dependencies[@]}"; do
+            echo -n "    Checking for $i."
+            if [ "$(dpkg-query -W -f='${Status}' "$i" 2>> ~/docker/homelab-install-script.log | grep -c "ok installed")" -eq 0 ]; then
+                echo -n " Required packages are not found! Installing them now."
+                #Supply answers to the questions so we don't prompt user
+                if [[ $i == "expect" ]]; then
+                    ($SUDO apt-get --yes --quiet --no-install-recommends install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                else
+                    ($SUDO apt-get --yes --quiet install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                fi
+                echo " Done."
+            else
+                echo " Dependencies are already installed! Let's continue."
+            fi
+        done
+    }
+
+    DockCheck()
+    {
+        ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
+        ISCOMP=$( (docker-compose -v ) 2>&1 )
+
+        #### Try to check whether docker is installed and running - don't prompt if it is
+        if [[ "$ISACT" != "active" ]]; then
+
         echo ""
-    fi
-        # Enabling docker to start automatically on hardware reboot
-        echo " Enabling the Docker service to start automatically on boot."
-        (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+        checkForUpdates
         echo ""
-        sleep 1s
-        # Installing portainer for Docker GUI Management
-        echo " Installing Portainer's community edition image."
+
+            echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
+            
+            (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
+                spinner $!
+            echo ""
+            echo " The installation of Docker Engine is complete and the version installed was - "
+            DOCKERV=$(docker -v)
+            echo "    "${DOCKERV}
+            
+            echo ""
+
+            echo " Starting the Docker Service"
+            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+    
+            echo " Adding this user account to the docker group for getting necessary permissions."      
+            (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker appears to be already installed and running in this system."
+            echo ""
+        fi
+
+        if [[ "$ISCOMP" == *"command not found"* ]]; then
+            echo " The script will now install the stable version of Docker-Compose."        
+            (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
+            echo ""
+            echo " The installation of Docker-Compose is also done. The version installed was - " 
+            DOCKCOMPV=$(docker-compose --version)
+            echo "   "${DOCKCOMPV}
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker-compose appears to be already installed."
+            echo ""
+        fi
+            # Enabling docker to start automatically on hardware reboot
+            echo " Enabling the Docker service to start automatically on boot."
+            (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            echo "Done."
+    }
+    
+    installportainer ()
+    {
+      #Defining a spinner function beforehand to denote progress instead of showing output.
+      spinner()
+      {
+          local pid=$1
+          local delay=0.50
+          local spinstr='/-\|'
+          while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+              local temp=${spinstr#?}
+              printf " [%c]  " "${spinstr}"
+              local spinstr=${temp}${spinstr%"$temp"}
+              sleep ${delay}
+              printf "\b\b\b\b\b\b"
+          done
+          printf "    \b\b\b\b"
+      }
+
+      #Portainer installation
+      PTAIN_FULLCE ()
+      {
+        echo "Installing Portainer's Community Edition."
         (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
         (sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-
-        echo " In order to proceed with the Website Package setup, you need to provide some additional details. "
-        echo " Please note that these values are not editable later on."
+        spinner $!
         echo ""
-        echo " We can set a memory limit for the instance to hold. This has to be provided in megabytes."
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
         echo ""
-        read -rp "Specify a comfortable memory limit (Eg: 64 or 128 etc.): " WPMEM
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
         echo ""
-        echo " The maximum file size limit needs to be set. This is to ensure that the uploads are done properly to your instance."
+      }
+
+      PTAIN_AGNT ()
+      {
+        echo "Installing Portainer Agent."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (sudo docker run -d -p 9001:9001 --name portainer_agent --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker/volumes:/var/lib/docker/volumes portainer/agent) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
         echo ""
-        read -rp "Specify a comfortable file size limit (Eg: 128 or 256 etc.): " WPFLM
+        echo " From your main Portainer or Portainer-CE instance, add this Agent instance via the 'Endpoints' option in the left menu."
+        echo " Use the IP ${CLOUDIP} port 9001 and also check if you need Port Forwarding enabled in your network."
         echo ""
-        sleep 1s
+      }
+
+      PTAIN_FULLBE ()
+      {
+        echo "Installing Portainer's Business Edition."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ee:latest) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
         echo ""
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
         echo ""
-        echo " Thank you for the input, the installation is resuming now."
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
         echo ""
-        sleep 1s
-        echo " Installing Matomo (It is a self-hosted analytics platform that integrates well with Wordpress)."
-        sudo mkdir -p docker/wordpress
-        cd docker/wordpress
+      }
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/wordpress-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+      #Setting up a function to see if Portainer already exists from any previous installation.
+      PTAINCE_CHECK ()
+      {
+            portainerce_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerce_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerce_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLCE
+          fi
+      }
 
-        sleep 1s
+      PTAINBE_CHECK ()
+      {
+            portainerbe_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerbe_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerbe_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLBE
+          fi
+      }
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/uploads.ini -o uploads.ini) >> ~/docker/homelab-install-script.log 2>&1
+      PTAINAG_CHECK ()
+      {
+            portainerag_check=$( docker ps -a -f name=portainer_agent | grep portainer_agent 2> /dev/null )
+          if [[ ! -z ${portainerag_check} ]]; then 
+            echo "A container with a name: Portainer Agent already exists and has status: $( echo ${portainerag_check} | awk '{ print $7 }' ), so skipping the Agent installation."
+          else
+            PTAIN_AGNT
+          fi
+      }
 
-        sleep 3s
+      PTAIN_CHOICES=$(whiptail --title "Portainer Selection" --menu "Choose an option" 20 110 7 \
+        "1" "Community Edition - Standard installation of Portainer's free edition" \
+        "2" "Portainer Agent - Installation of just the Agent service to connect to other Portainer instances." \
+        "3" "Business Edition - Installation of Portainer's Business Edition." \
+        "4" "Nevermind, I don't need Portainer to be setup now." 3>&1 1>&2 2>&3)
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,mem_lm,'"$(echo "$WPMEM"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,file_lm,'"$(echo "$WPFLM"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-                
-        sleep 30s
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
+      if [ -z "$PTAIN_CHOICES" ]; then
+        echo "No option was selected, the installer will exit now."
+      else
+        for PTAIN_CHOICE in $PTAIN_CHOICES; do
+          case "$PTAIN_CHOICE" in
+          "1")
+            PTAINCE_CHECK
+            ;;
+          "2")
+            PTAINAG_CHECK
+            ;;
+          "3")
+            PTAINBE_CHECK
+            ;;
+          "4")
+            exit 1
+            ;;
+          *)
+            echo "Unsupported item $PTAIN_CHOICE!" >&2
+            exit 1
+            ;;
+          esac
         done
-        printf "\r"
+      fi
+    }
 
-        sleep 3s
-        cd
+    installMatomo()
+    {
+            
+            echo "         Installing Matomo          "
+              
+            echo " It is a self-hosted analytics platform that integrates well with Wordpress."
+            # Pull the Matomo docker-compose file from github
+            sudo mkdir -p docker/matomo
+            cd docker/matomo
 
-        echo " Installing Matomo (It is a self-hosted analytics platform that integrates well with Wordpress)."
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/matomo-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
 
-        # Pull the Matomo docker-compose file from github
-        sudo mkdir -p docker/matomo
-        cd docker/matomo
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/matomo-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1     
 
-        sleep 1s
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:8384 to view your Matomo instance."
+            echo ""
+    }
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
+    installWordpress()
+    {
+            
+            echo "        Installing Wordpress        "
+            
+            sudo mkdir -p docker/wordpress
+            cd docker/wordpress
 
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1     
-        
-        sleep 1s
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/wordpress-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
 
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:8384 to view your Matomo instance."
-        echo ""
-        sleep 3s
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Website%20Package/uploads.ini -o uploads.ini) >> ~/docker/homelab-install-script.log 2>&1
 
-        echo " Installing NGinX Proxy Manager."
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
 
-        sudo mkdir -p docker/nginx-proxy-manager
-        cd docker/nginx-proxy-manager
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,mem_lm,'"$(echo "$WPMEM"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,file_lm,'"$(echo "$WPFLM"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/npm-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &           
+            spinner $!
+      
+            cd
+    }
 
-        sleep 1s
+    installNginxProxyManager()
+    {
+            
+            echo "   Installing NGinX Proxy Manager   "
+            
+            sudo mkdir -p docker/nginx-proxy-manager
+            cd docker/nginx-proxy-manager
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/npm-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
 
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
 
-        sleep 2s
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo ""
+            echo " Go to http://${LOCALIP}:81 to setup the Nginx Proxy Manager admin account and configure your domain to this instance."
+            echo " Note that the Wordpress instance is running on port 8282. Use this port to setup the prox for your domain prior to starting"
+            echo " the famous five-minute installation of wordpress."
+            echo ""
+            echo " The default login credentials for Nginx Proxy Manager are:"
+            echo ""
+            echo "  username: admin@example.com"
+            echo "  password: changeme"
+            echo ""
+            echo ""
+            echo " Thank you for using this script!"       
+    }        
 
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
+  echo ""
+  echo ""
+  echo " __        __   _         _ _         ____            _                    ";
+  echo " \ \      / ___| |__  ___(_| |_ ___  |  _ \ __ _  ___| | ____ _  __ _  ___ ";
+  echo "  \ \ /\ / / _ | '_ \/ __| | __/ _ \ | |_) / _\'|/ __| |/ / _\'|/ _\'|/ _ |";
+  echo "   \ V  V |  __| |_) \__ | | ||  __/ |  __| (_| | (__|   | (_| | (_| |  __/";
+  echo "    \_/\_/ \___|_.__/|___|_|\__\___| |_|   \__,_|\___|_|\_\__,_|\__, |\___|";
+  echo "                                                                |___/      ";
+  echo ""
+  echo ""
+  
+  # Installing Docker, Docker Compose.
+  DockCheck    
 
-        echo ""
-        echo ""
-        echo " Go to http://${LOCALIP}:81 to setup the Nginx Proxy Manager admin account and configure your domain to this instance."
-        echo " Note that the Wordpress instance is running on port 8282. Use this port to setup the prox for your domain prior to starting"
-        echo " the famous five-minute installation of wordpress."
-        echo ""
-        echo " The default login credentials for Nginx Proxy Manager are:"
-        echo ""
-        echo "  username: admin@example.com"
-        echo "  password: changeme"
-        echo ""
-        echo ""
-        echo " Thank you for using this script!"       
-        sleep 3s
-        cd
+  whiptail --msgbox --title "Caution!" "In order to proceed with the Website Package setup, you need to provide some additional details.
+  
+  Please note that these values are not editable later on." 20 110
+  
+  WPMEM=$(whiptail --inputbox --title "Memory Limit" "Specify a comfortable memory limit.
+  
+  This has to be provided in megabytes (Eg: 64 or 128 etc.)" 20 110 3>&1 1>&2 2>&3)
+  WPFLM=$(whiptail --inputbox --title "File Limit" "The maximum file size limit needs to be set. 
+  
+  This is to ensure that the uploads are done properly to your instance. (Eg: 128 or 256 etc.)" 20 110 3>&1 1>&2 2>&3)
 
-    exit 1 
+  whiptail --msgbox  "Thank you for the input, now select the packages you'd like to have installed." 20 110 3>&1 1>&2 2>&3
+  
+  WP_CHOICES=$(whiptail --separate-output --checklist "Choose options" 18 55 10 \
+    "1" "Wordpress        " ON \
+    "2" "Matomo Analytics       " OFF \
+    "3" "Nginx Proxy Manager        " OFF 3>&1 1>&2 2>&3)
+
+  if [ -z "$WP_CHOICES" ]; then
+    echo "No option was chosen (user hit Cancel)"
+  else
+    for WP_CHOICE in $WP_CHOICES; do
+      case "$WP_CHOICE" in
+      "1")
+        installWordpress
+        ;;
+      "2")
+        installMatomo
+        ;;
+      "3")
+        installNginxProxyManager
+        ;;
+      *)
+        echo "Unsupported item $WP_CHOICE!" >&2
+        exit 1
+        ;;
+      esac
+    done
+  fi
+  # Installing portainer for Docker GUI Management
+  installportainer
+  cd
+  exit 1 
 
 }
 
 installApps()
 {
-    clear
-echo ""
-echo ""
-echo "   ____                           _      _                    ";
-echo "  / ___| ___ _ __   ___ _ __ __ _| |    / \   _ __  _ __  ___ ";
-echo " | |  _ / _ | '_ \ / _ | '__/ _\'| |   / _ \ | '_ \| '_ \/ __|";
-echo " | |_| |  __| | | |  __| | | (_| | |  / ___ \| |_) | |_) \__ \'";
-echo "  \____|\___|_| |_|\___|_|  \__,_|_| /_/   \_| .__/| .__/|___/";
-echo "                                             |_|   |_|        ";
-echo ""
-echo ""
+  clear
 
+    #Defining a spinner function beforehand to denote progress instead of showing output.
+    spinner()
+    {
+        local pid=$1
+        local delay=0.50
+        local spinstr='/-\|'
+        while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+            local temp=${spinstr#?}
+            printf " [%c]  " "${spinstr}"
+            local spinstr=${temp}${spinstr%"$temp"}
+            sleep ${delay}
+            printf "\b\b\b\b\b\b"
+        done
+        printf "    \b\b\b\b"
+    }
 
-echo " Now, you will be shown a short description of various applications supported by me (as of now)."
-echo ""       
-echo " Before that, please provide the path of the directory where you want the applications to be installed. This is required for proper configuration."
-echo " If the folder doesn't exist, it will be created for future use. "
-echo ""
-echo " Provide the path in the format of '/data/path' without the trailing '/'"
-echo " Eg: /docker/apps (or) /home/$USER/apps etc. "
-echo ""
-echo ""
-        read -rp " Specify the path to install the applications: " INSPTH
-        sudo mkdir "$INSPTH" -p
-        sleep 1s
-        echo ""
-echo ""
-echo " Now, lets choose what applications to install. When prompted, please select 'y' for each item you would like to install."
+    #Updates check
+    checkForUpdates() 
+    {
+        #Running apt-get update to check for the updates available and also caching the number of packages that can be
+        #upgraded and advising the user to upgrade after the installation. To avoid issues with minimal output in Ubuntu.
 
-echo ""
-echo " Nginx Proxy manager is the application that lets users to expose their self-hosted applications and make them accessible via a domain name."  
-read -rp "Install Nginx Proxy Manager? (y/n): " NPM
-sleep 1s
-echo ""  
-echo " File Browser is a software where you can install it on a server, direct it to a path and then access your files through a nice web interface."
-read -rp "Install Filebrowser? (y/n): " FLBW
-sleep 1s
-echo ""
-echo " Snapdrop is a local file sharing server accessible from your browser, kind of like Airdrop."
-read -rp "Install Snapdrop? (y/n): " SNPDP
-sleep 1s
-echo ""
-echo " Code Server lets you run VS Code on any machine anywhere and access it in the browser."
-read -rp "Install Code Server? (y/n): " CDESRVR
-sleep 1s
-echo ""
-echo " Dillinger is an online cloud-enabled, HTML5, buzzword-filled Markdown editor."
-read -rp "Install Dillinger? (y/n): " DLNGR
-sleep 1s
-echo ""
-echo " Cryptgeon is a secure, open source note or file sharing service inspired by PrivNote"
-read -rp "Install Cryptgeon? (y/n): " CPTGN
-sleep 1s
-echo ""
-echo " Vaultwarden is a strong password manager that supports many features and integrates with Bitwarden API."
-read -rp "Install Vaultwarden? (y/n): " VLWDN
-sleep 1s
-echo ""
-echo " Uptime Kuma is a self-hosted monitoring tool like Uptime Robot."
-read -rp "Install Uptime Kuma? (y/n): " UPKMA
-sleep 1s
-echo ""
-echo " Trilium Notes is a hierarchical note taking application with focus on building large personal knowledge bases."
-read -rp "Install Trilium Notes? (y/n): " TLMNTS
-sleep 1s
-echo ""
-#echo " Rallly is a Self-hostable doodle poll alternative. Find the best date for a meeting with your colleagues or friends without the back and forth emails."
-#read -rp "Install Rallly? (y/n): " RLLY
-#sleep 1s
-#echo ""
-echo " Pinry is a a tiling image board system for people who want to save, tag, and share images, videos and webpages in an easy to skim through format."
-read -rp "Install Pinry? (y/n): " PNRY
-sleep 1s
-echo ""
-#echo "Vikunja is an open-source, self-hostable to-do app to organize everything, on all platforms. "
-#read -rp "Install Vikunja? (y/n): " VKNJA
-#sleep 1s
-#echo ""
-#echo "Polr is a quick, modern, and open-source link shortener. It allows you to host your own URL shortener, and to brand your URLs. "
-#    read -rp "Install Polr? (y/n): " POLR
-#    sleep 1s
-#echo ""
-echo " Whoogle lets you get Google search results, but without any ads, javascript, AMP links, cookies, or IP address tracking. "
-read -rp "Install Whoogle? (y/n): " WGLE
-sleep 1s
-echo ""
-echo " Wiki.Js The most powerful and extensible open source Wiki software"
-read -rp "Install Wiki.Js? (y/n): " WJS
-sleep 1s
-echo ""
-echo " JDownloader is a free, open-source download management tool. "
-read -rp "Install JDownloader? (y/n): " JDWN
-sleep 1s
-echo ""
-echo " Dashy is an open source, highly customizable, easy to use, privacy-respecting dashboard app."
-read -rp "Install Dashy? (y/n): " DASHY
-sleep 1s
-echo ""
-echo ""
+        timestamp=$(stat -c %Y /var/cache/apt/)
+        timestampAsDate=$(date -d @"$timestamp" "+%b %e")
+        today=$(date "+%b %e")
 
-echo " Okay $username, I've taken the list of what apps to install. Let's start by installing the system updates."
-    ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
-    ISCOMP=$( (docker-compose -v ) 2>&1 )
+        if [ ! "$today" == "$timestampAsDate" ]; then
+            #update package lists
+            echo ""
+            echo -n " Hey $username, it seems that the package updates has not been run today. So, I am running them now."
+            $SUDO apt-get -qq update & spinner $!
+            echo " It's Done."
+        fi
+        echo ""
+        echo -n " Checking the repository for upgraded packages."
+        updatesToInstall=$($SUDO apt-get -s -o Debug::NoLocking=true upgrade | grep -c ^Inst)
+        echo " Done!"
+        echo ""
+        if [[ $updatesToInstall -eq "0" ]]; then
+            echo " Your system is up to date! Continuing with the installation."
+        else
+            echo " It seems that there are $updatesToInstall updates availible for your system."
+            echo " Please make sure that you run 'sudo apt-get upgrade' after this installation completes. "
+            echo ""
+        fi
+        echo ""
+        echo " Checking dependencies:"
 
-    #### Try to check whether docker is installed and running - don't prompt if it is
-    if [[ "$ISACT" != "active" ]]; then
-            (sudo apt update && sudo apt upgrade -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The updates are done. Now the system is installing some prerequisite packages."
-        sleep 2s
-        echo ""
-        (sudo apt install curl wget git -y) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
-        sleep 2s
-        (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
-            ## Show a spinner for activity progress
-            pid=$! # Process Id of the previous running command
-            spin='-\|/'
-            i=0
-            while kill -0 $pid 2>/dev/null
-            do
-                i=$(( (i+1) %4 ))
-                printf "\r${spin:$i:1}"
-                sleep .1
-            done
-            printf "\r"
-        echo ""
-        echo " The installation of Docker Engine is complete and the version installed was - "
-        DOCKERV=$(docker -v)
-        echo "    "${DOCKERV}
-        sleep 3s
-        echo ""
-        echo " Starting the Docker Service"
-        (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        echo " Adding this user account to the docker group for getting necessary permissions."
-        sleep 2s
-        (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 3s
-    else
-        echo ""
-        echo " Docker appears to be already installed and running in this system."
-        echo ""
-    fi
+        dependencies=( git wget grep dnsutils expect whiptail )
+        for i in "${dependencies[@]}"; do
+            echo -n "    Checking for $i."
+            if [ "$(dpkg-query -W -f='${Status}' "$i" 2>> ~/docker/homelab-install-script.log | grep -c "ok installed")" -eq 0 ]; then
+                echo -n " Required packages are not found! Installing them now."
+                #Supply answers to the questions so we don't prompt user
+                if [[ $i == "expect" ]]; then
+                    ($SUDO apt-get --yes --quiet --no-install-recommends install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                else
+                    ($SUDO apt-get --yes --quiet install "$i" >> ~/docker/homelab-install-script.log || echo "Installation Failed!") & spinner $!
+                fi
+                echo " Done."
+            else
+                echo " Dependencies are already installed! Let's continue."
+            fi
+        done
+    }
 
-    if [[ "$ISCOMP" == *"command not found"* ]]; then
-        echo " The script will now install the stable version of Docker-Compose."
-        sleep 2s
-        (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
-        echo ""
-        echo " The installation of Docker-Compose is also done. The version installed was - " 
-        DOCKCOMPV=$(docker-compose --version)
-        echo "   "${DOCKCOMPV}
-        echo ""
-        sleep 3s
-    else
-        echo ""
-        echo " Docker-compose appears to be already installed."
-        echo ""
-    fi
-        # Enabling docker to start automatically on hardware reboot
-        echo " Enabling the Docker service to start automatically on boot."
-        (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
-        echo ""
-        sleep 1s
-        cd
+    DockCheck()
+    {
+        ISACT=$( (sudo systemctl is-active docker ) 2>&1 )
+        ISCOMP=$( (docker-compose -v ) 2>&1 )
 
-    if [[ "$NPM" == [yY] ]]; then
-        echo "##########################################"
-        echo "###     Install Nginx Proxy Manager    ###"
-        echo "##########################################"
+        #### Try to check whether docker is installed and running - don't prompt if it is
+        if [[ "$ISACT" != "active" ]]; then
+
+        echo ""
+        checkForUpdates
+        echo ""
+
+            echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
+            
+            (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
+                spinner $!
+            echo ""
+            echo " The installation of Docker Engine is complete and the version installed was - "
+            DOCKERV=$(docker -v)
+            echo "    "${DOCKERV}
+            
+            echo ""
+
+            echo " Starting the Docker Service"
+            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
     
-        # Pull the nginx proxy manager docker-compose file from github
-        echo " Pulling a default NGinX Proxy Manager docker-compose.yml file."
+            echo " Adding this user account to the docker group for getting necessary permissions."      
+            (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker appears to be already installed and running in this system."
+            echo ""
+        fi
 
-        sudo mkdir -p docker/nginx-proxy-manager
-        cd docker/nginx-proxy-manager
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/npm-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install and start NGinX Proxy Manager"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:81 to setup the Nginx Proxy Manager admin account."
-        echo ""
-        echo " The default login credentials for Nginx Proxy Manager are:"
-        echo "  username: admin@example.com"
-        echo "  password: changeme"
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$FLBW" == [yY] ]]; then
-        echo "###########################################"
-        echo "###       Installing Filebrowser        ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Filebrowser"
-
-        sudo mkdir -p docker/filebrowser
-        cd docker/filebrowser
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/filebrowser-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Filebrowser"
-        echo ""
-
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:8083 to setup your Filebrowser instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$SNPDP" == [yY] ]]; then
-        echo "###########################################"
-        echo "###        Installing Snapdrop          ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Snapdrop"
-
-        sudo mkdir -p docker/snapdrop
-        cd docker/snapdrop
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/snapdrop-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Snapdrop"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:82 to view your Snapdrop instance."
-        echo ""  
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$CDESRVR" == [yY] ]]; then
-        echo "###########################################"
-        echo "###       Installing Codeserver         ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Codeserver"
-
-        sudo mkdir -p docker/codeserver
-        cd docker/codeserver
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/codeserver-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Codeserver"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:7443 to setup your Codeserver instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$DLNGR" == [yY] ]]; then
-        echo "###########################################"
-        echo "###        Installing Dillinger         ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Dillinger"
-
-        sudo mkdir -p docker/dillinger
-        cd docker/dillinger
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/dillinger-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Dillinger"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:8085 to setup your Dillinger instance."
-        echo ""
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$CPTGN" == [yY] ]]; then
-        echo "##########################################"
-        echo "###          Install Cryptgeon         ###"
-        echo "##########################################"
+        if [[ "$ISCOMP" == *"command not found"* ]]; then
+            echo " The script will now install the stable version of Docker-Compose."        
+            (sudo apt install docker-compose -y) >> ~/docker/homelab-install-script.log 2>&1     
+            echo ""
+            echo " The installation of Docker-Compose is also done. The version installed was - " 
+            DOCKCOMPV=$(docker-compose --version)
+            echo "   "${DOCKCOMPV}
+            echo ""
+            
+        else
+            echo ""
+            echo " Docker-compose appears to be already installed."
+            echo ""
+        fi
+            # Enabling docker to start automatically on hardware reboot
+            echo " Enabling the Docker service to start automatically on boot."
+            (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            echo "Done."
+    }
     
-        # Pull the cryptgeon docker-compose file from github
-        echo " Preparing to install Cryptgeon"
+    installportainer ()
+    {
+      #Defining a spinner function beforehand to denote progress instead of showing output.
+      spinner()
+      {
+          local pid=$1
+          local delay=0.50
+          local spinstr='/-\|'
+          while [ "$(ps a | awk '{print $1}' | grep "${pid}")" ]; do
+              local temp=${spinstr#?}
+              printf " [%c]  " "${spinstr}"
+              local spinstr=${temp}${spinstr%"$temp"}
+              sleep ${delay}
+              printf "\b\b\b\b\b\b"
+          done
+          printf "    \b\b\b\b"
+      }
 
-        sudo mkdir -p docker/cryptgeon
-        cd docker/cryptgeon
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/cryptgeon-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        echo " Cryptgeon uses your system's RAM to store the data and share it with full encryption. This is done with the help of Redis container."
-        echo " Hence you need to specify a comfortable size limit (in MB) for the application to reserve in RAM."
+      #Portainer installation
+      PTAIN_FULLCE ()
+      {
+        echo "Installing Portainer's Community Edition."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
         echo ""
-        read -rp "Specify size limit in megabytes (Eg: 32): " CPTGNLM
-        
-        (find . -type f -exec sed -i 's,SZLM,'"$(echo "$CPTGNLM"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        echo " Running the docker-compose.yml to install the application."
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
         echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
+        echo ""
+      }
+
+      PTAIN_AGNT ()
+      {
+        echo "Installing Portainer Agent."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (sudo docker run -d -p 9001:9001 --name portainer_agent --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/docker/volumes:/var/lib/docker/volumes portainer/agent) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " From your main Portainer or Portainer-CE instance, add this Agent instance via the 'Endpoints' option in the left menu."
+        echo " Use the IP ${CLOUDIP} port 9001 and also check if you need Port Forwarding enabled in your network."
+        echo ""
+      }
+
+      PTAIN_FULLBE ()
+      {
+        echo "Installing Portainer's Business Edition."
+        (sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
+        (docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ee:latest) >> ~/docker/homelab-install-script.log 2>&1 &
+        spinner $!
+        echo ""
+        echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker and Portainer instance."
+        echo ""
+        echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
+        echo ""
+      }
+
+      #Setting up a function to see if Portainer already exists from any previous installation.
+      PTAINCE_CHECK ()
+      {
+            portainerce_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerce_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerce_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLCE
+          fi
+      }
+
+      PTAINBE_CHECK ()
+      {
+            portainerbe_check=$( docker ps -a -f name=portainer | grep portainer 2> /dev/null )
+          if [[ ! -z ${portainerbe_check} ]]; then 
+            echo "A container with a name: Portainer already exists and has status: $( echo ${portainerbe_check} | awk '{ print $7 }' ), so skipping the Portainer installation."
+          else
+            PTAIN_FULLBE
+          fi
+      }
+
+      PTAINAG_CHECK ()
+      {
+            portainerag_check=$( docker ps -a -f name=portainer_agent | grep portainer_agent 2> /dev/null )
+          if [[ ! -z ${portainerag_check} ]]; then 
+            echo "A container with a name: Portainer Agent already exists and has status: $( echo ${portainerag_check} | awk '{ print $7 }' ), so skipping the Agent installation."
+          else
+            PTAIN_AGNT
+          fi
+      }
+
+      PTAIN_CHOICES=$(whiptail --title "Portainer Selection" --menu "Choose an option" 20 110 7 \
+        "1" "Community Edition - Standard installation of Portainer's free edition" \
+        "2" "Portainer Agent - Installation of just the Agent service to connect to other Portainer instances." \
+        "3" "Business Edition - Installation of Portainer's Business Edition." \
+        "4" "Nevermind, I don't need Portainer to be setup now." 3>&1 1>&2 2>&3)
+
+      if [ -z "$PTAIN_CHOICES" ]; then
+        echo "No option was selected, the installer will exit now."
+      else
+        for PTAIN_CHOICE in $PTAIN_CHOICES; do
+          case "$PTAIN_CHOICE" in
+          "1")
+            PTAINCE_CHECK
+            ;;
+          "2")
+            PTAINAG_CHECK
+            ;;
+          "3")
+            PTAINBE_CHECK
+            ;;
+          "4")
+            exit 1
+            ;;
+          *)
+            echo "Unsupported item $PTAIN_CHOICE!" >&2
+            exit 1
+            ;;
+          esac
         done
-        printf "\r"
+      fi
+    }
 
-        echo ""
-        echo " Go to http://${LOCALIP}:5000 to setup your Cryptgeon instance."
-        echo ""     
-        sleep 3s
-        cd
-    fi
+    installNginxProxyManager()
+    {
+            
+            echo "   Installing NGinX Proxy Manager   "
+            echo ""
+            # Pull the nginx proxy manager docker-compose file from github
+            echo " Pulling a default NGinX Proxy Manager docker-compose.yml file."
+
+            sudo mkdir -p docker/nginx-proxy-manager
+            cd docker/nginx-proxy-manager
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/npm-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start NGinX Proxy Manager"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:81 to setup the Nginx Proxy Manager admin account."
+            echo ""
+            echo " The default login credentials for Nginx Proxy Manager are:"
+            echo "  username: admin@example.com"
+            echo "  password: changeme"
+            echo ""       
+            
+            cd
+    }
+
+    installFilebrowser()
+    {
+            
+            echo "       Installing Filebrowser        "            
+            echo ""
+            echo " Preparing to install Filebrowser"
+
+            sudo mkdir -p docker/filebrowser
+            cd docker/filebrowser
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/filebrowser-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install Filebrowser"
+            echo ""
+
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+
+            echo ""
+            echo " Go to http://${LOCALIP}:8083 to setup your Filebrowser instance."
+            echo ""       
+            
+            cd
+    }
+
+    installSnapdrop()
+    {
+            
+            echo "        Installing Snapdrop          "            
+            echo ""
+            echo " Preparing to install Snapdrop"
+
+            sudo mkdir -p docker/snapdrop
+            cd docker/snapdrop
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/snapdrop-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
     
-    if [[ "$VLWDN" == [yY] ]]; then
-        echo "###########################################"
-        echo "###       Installing Vaultwarden        ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Vaultwarden"
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
 
-        sudo mkdir -p docker/vaultwarden
-        cd docker/vaultwarden
+            echo " Running the docker-compose.yml to install Snapdrop"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/vaultwarden-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            echo " Go to http://${LOCALIP}:82 to view your Snapdrop instance."
+            echo ""  
+            
+            cd
+    }
 
-        sleep 1s
+    installCodeserver()
+    {
+            
+            echo "       Installing Codeserver         "            
+            echo ""
+            echo " Preparing to install Codeserver"
 
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+            sudo mkdir -p docker/codeserver
+            cd docker/codeserver
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/codeserver-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install Codeserver"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+
+            echo ""
+            echo " Go to http://${LOCALIP}:7443 to setup your Codeserver instance."
+            echo ""       
+            
+            cd
+    }
+
+    installDillinger()
+    {
+            
+            echo "        Installing Dillinger         "            
+            echo ""
+            echo " Preparing to install Dillinger"
+
+            sudo mkdir -p docker/dillinger
+            cd docker/dillinger
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/dillinger-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install Dillinger"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+
+            echo ""
+            echo " Go to http://${LOCALIP}:8085 to setup your Dillinger instance."
+            echo ""
+            
+            cd
+    }
+
+    installCryptgeon()
+    {
+            
+            echo "          Install Cryptgeon         "            
+            echo ""
+            # Pull the cryptgeon docker-compose file from github
+            echo " Preparing to install Cryptgeon"
+
+            sudo mkdir -p docker/cryptgeon
+            cd docker/cryptgeon
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/cryptgeon-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            whiptail --msgbox  --title "Input Required" "Cryptgeon uses your system's RAM to store the data and share it with full encryption. This is done with the help of Redis container.
+            
+            Hence you need to specify a comfortable size limit (in MB) for the application to reserve in RAM." 20 110
+            
+            CPTGNLM=$(whiptail --inputbox --title "Size Limit" "Specify size limit in megabytes (Eg: 32):" 20 110 3>&1 1>&2 2>&3)
+            
+            (find . -type f -exec sed -i 's,SZLM,'"$(echo "$CPTGNLM"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install the application."
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+
+            echo ""
+            echo " Go to http://${LOCALIP}:5000 to setup your Cryptgeon instance."
+            echo ""       
+            cd
+    }
         
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Vaultwarden"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:8062 to view your Vaultwarden instance."
-        echo ""      
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$UPKMA" == [yY] ]]; then
-        echo "###########################################"
-        echo "###       Installing Uptime Kuma        ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Uptime Kuma"
-
-        sudo mkdir -p docker/uptimekuma
-        cd docker/uptimekuma
-
-        (curl -o kuma_install.sh http://git.kuma.pet/install.sh && sudo bash kuma_install.sh) >> ~/docker/homelab-install-script.log 2>&1 &
-
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:3001 to view your Uptime Kuma instance."
-        echo ""   
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$TLMNTS" == [yY] ]]; then
-        echo "###########################################"
-        echo "###      Installing Trilium Notes       ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Trilium Notes"
-
-        sudo mkdir -p docker/trilium
-        cd docker/trilium
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/trilium-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Trilium Notes"
-        echo ""
-        echo ""
-
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:85 to view your Trilium Notes instance."
-        echo ""   
-        sleep 3s
-        cd
-    fi
-
-#    if [[ "$RLLY" == [yY] ]]; then
-#        echo "###########################################"
-#        echo "###         Installing Rallly           ###"
-#        echo "###########################################"
-#        echo ""
-#        echo "    1. Preparing to install Rallly"
-#
-#        mkdir -p docker/rallly
-#        cd docker/rallly
-#
-#        curl https://*****/docker_compose_filebrowser.yml -o docker-compose.yml >> ~/docker/homelab-install-script.log 2>&1
-#
-#        echo "    2. Running the docker-compose.yml to install Rallly"
-#        echo ""
-#        echo ""
-#
-#        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-#        ## Show a spinner for activity progress
-#        pid=$! # Process Id of the previous running command
-#        spin='-\|/'
-#        i=0
-#        while kill -0 $pid 2>/dev/null
-#        do
-#            i=$(( (i+1) %4 ))
-#            printf "\r${spin:$i:1}"
-#            sleep .1
-#        done
-#        printf "\r"
-
-#        echo ""
-#        echo ""
-#        echo "    Go to http://${LOCALIP}:86"
-#        echo "      to view your Rallly instance."
-#        echo ""
-#        echo ""       
-#        sleep 3s
-#        cd
-#    fi
-
-    if [[ "$PNRY" == [yY] ]]; then
-        echo "###########################################"
-        echo "###         Installing Pinry            ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Pinry"
-
-        sudo mkdir -p docker/pinry
-        cd docker/pinry
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/pinry_docker_compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Pinry"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-
-        echo ""
-        echo " Go to http://${LOCALIP}:8981 to view your Pinry instance."
-        echo ""   
-        sleep 3s
-        cd
-    fi
-
-#    if [[ "$VKNJA" == [yY] ]]; then
-#        echo "###########################################"
-#        echo "###        Installing Vikunja           ###"
-#        echo "###########################################"
-#        echo ""
-#        echo "    1. Preparing to install Vikunja"
-#
-#        mkdir -p docker/vikunja
-#        cd docker/vikunja
-#
-#        curl https://*****/docker_compose_filebrowser.yml -o docker-compose.yml >> ~/docker/homelab-install-script.log 2>&1
-#
-#        echo "    2. Running the docker-compose.yml to install Vikunja"
-#        echo ""
-#        echo ""
-#
-#        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-#        ## Show a spinner for activity progress
-#        pid=$! # Process Id of the previous running command
-#        spin='-\|/'
-#        i=0
-#        while kill -0 $pid 2>/dev/null
-#        do
-#            i=$(( (i+1) %4 ))
-#            printf "\r${spin:$i:1}"
-#            sleep .1
-#        done
-#        printf "\r"
-
-#        echo ""
-#        echo ""
-#        echo "    Go to http://${LOCALIP}:87 "
-#        echo "      to view your Vikunja instance."
-#        echo ""
-#        echo ""       
-#        sleep 3s
-#        cd
-#    fi
-
-#    if [[ "$POLR" == [yY] ]]; then
-#        echo "###########################################"
-#        echo "###        Installing POLR           ###"
-#        echo "###########################################"
-#        echo ""
-#        echo "    1. Preparing to install POLR"
-#
-#        mkdir -p docker/polr
-#        cd docker/polr
-#
-#        curl https://*****/docker_compose_filebrowser.yml -o docker-compose.yml >> ~/docker/homelab-install-script.log 2>&1
-
-#        echo "    2. Running the docker-compose.yml to install POLR"
-#        echo ""
-#        echo ""
-
-#        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-#        ## Show a spinner for activity progress
-#        pid=$! # Process Id of the previous running command
-#        spin='-\|/'
-#        i=0
-#        while kill -0 $pid 2>/dev/null
-#        do
-#            i=$(( (i+1) %4 ))
-#            printf "\r${spin:$i:1}"
-#            sleep .1
-#        done
-#        printf "\r"
-
-#        echo ""
-#        echo ""
-#        echo "    Go to http://${LOCALIP}:88 "
-#        echo "      to view your POLR instance."
-#        echo ""
-#        echo ""       
-#        sleep 3s
-#        cd
-#    fi
-
-    if [[ "$WGLE" == [yY] ]]; then
-        echo "###########################################"
-        echo "###        Installing Whoogle           ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Whoogle"
-
-        sudo mkdir -p docker/whoogle
-        cd docker/whoogle
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/whoogle-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Whoogle"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:8082 to view your Whoogle instance."
-        echo ""   
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$WJS" == [yY] ]]; then
-        echo "###########################################"
-        echo "###        Installing Wiki.Js           ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Wiki.Js"
-
-        sudo mkdir -p docker/wikijs
-        cd docker/wikijs
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/wikijs-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install Wiki.Js"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:8084 to view your Wiki.Js instance."
-        echo ""     
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$JDWN" == [yY] ]]; then
-        echo "###########################################"
-        echo "###      Installing JDownloader         ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install JDownloader"
-
-        sudo mkdir -p docker/jdownloader
-        cd docker/jdownloader
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/jdown-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-
-        echo " Running the docker-compose.yml to install JDownloader"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:5800 to view your JDownloader instance."
-        echo ""
-        sleep 3s
-        cd
-    fi
-
-    if [[ "$DASHY" == [yY] ]]; then
-        echo "###########################################"
-        echo "###          Installing Dashy           ###"
-        echo "###########################################"
-        echo ""
-        echo " Preparing to install Dashy"
-
-        sudo mkdir -p docker/dashy
-        sudo mkdir -p docker/dashy/public
-        sudo mkdir -p docker/dashy/icons
-        
-        cd docker/dashy/icons
-
-        (sudo git clone https://github.com/walkxcode/dashboard-icons.git) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-        cd
-        sleep 1s
-
-        cd docker/dashy/public
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/dashy-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 1s
-
-        (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
-        
-        sleep 1s
-
-        (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-        (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
-
-        sleep 2s
-                
-        echo " Running the docker-compose.yml to install Dashy"
-        echo ""
-        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
-        ## Show a spinner for activity progress
-        pid=$! # Process Id of the previous running command
-        spin='-\|/'
-        i=0
-        while kill -0 $pid 2>/dev/null
-        do
-            i=$(( (i+1) %4 ))
-            printf "\r${spin:$i:1}"
-            sleep .1
-        done
-        printf "\r"
-        echo ""
-        echo " Go to http://${LOCALIP}:4000 to setup your Dashy instance."
-        echo ""       
-        sleep 3s
-        cd
-    fi
-# Installing portainer for Docker GUI Management
-echo " Finishing up by installing Portainer's community edition image."
-(sudo docker volume create portainer_data) >> ~/docker/homelab-install-script.log 2>&1
-(sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest) >> ~/docker/homelab-install-script.log 2>&1 &
-## Show a spinner for activity progress
-    pid=$! # Process Id of the previous running command
-    spin='-\|/'
-    i=0
-    while kill -0 $pid 2>/dev/null
-    do
-        i=$(( (i+1) %4 ))
-        printf "\r${spin:$i:1}"
-        sleep .1
+    installVaultwarden()
+    {
+            
+            echo "       Installing Vaultwarden        "            
+            echo ""
+            echo " Preparing to install Vaultwarden"
+
+            sudo mkdir -p docker/vaultwarden
+            cd docker/vaultwarden
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/vaultwarden-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install Vaultwarden"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+
+            echo ""
+            echo " Go to http://${LOCALIP}:8062 to view your Vaultwarden instance."
+            echo ""      
+            
+            cd
+    }
+
+    installUptimeK()
+    {
+            
+            echo "       Installing Uptime Kuma        "            
+            echo ""
+            echo " Preparing to install Uptime Kuma"
+
+            sudo mkdir -p docker/uptimekuma
+            cd docker/uptimekuma
+
+            (curl -o kuma_install.sh http://git.kuma.pet/install.sh && sudo bash kuma_install.sh) >> ~/docker/homelab-install-script.log 2>&1 &
+
+            spinner $!
+
+            echo ""
+            echo " Go to http://${LOCALIP}:3001 to view your Uptime Kuma instance."
+            echo ""   
+            
+            cd
+    }
+
+    installTrilium()
+    {
+            
+            echo "      Installing Trilium Notes       "            
+            echo ""
+            echo " Preparing to install Trilium Notes"
+
+            sudo mkdir -p docker/trilium
+            cd docker/trilium
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/trilium-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install Trilium Notes"
+            echo ""
+            echo ""
+
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+
+            echo ""
+            echo " Go to http://${LOCALIP}:85 to view your Trilium Notes instance."
+            echo ""   
+            
+            cd
+    }
+
+    #    if [[ "$RLLY" == [yY] ]]; then
+    #        
+    #        echo "         Installing Rallly           "
+    #        
+    #        echo ""
+    #        echo "    1. Preparing to install Rallly"
+    #
+    #        mkdir -p docker/rallly
+    #        cd docker/rallly
+    #
+    #        curl https://*****/docker_compose_filebrowser.yml -o docker-compose.yml >> ~/docker/homelab-install-script.log 2>&1
+    #
+    #        echo "    2. Running the docker-compose.yml to install Rallly"
+    #        echo ""
+    #        echo ""
+    #
+    #        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+    #        ## Show a spinner for activity progress
+    #        pid=$! # Process Id of the previous running command
+    #        spin='-\|/'
+    #        i=0
+    #        while kill -0 $pid 2>/dev/null
+    #        do
+    #            i=$(( (i+1) %4 ))
+    #            printf "\r${spin:$i:1}"
+    #            sleep .1
+    #        done
+    #        printf "\r"
+
+    #        echo ""
+    #        echo ""
+    #        echo "    Go to http://${LOCALIP}:86"
+    #        echo "      to view your Rallly instance."
+    #        echo ""
+    #        echo ""       
+    #        
+    #        cd
+    #    fi
+
+    installPinry()
+    {
+            
+            echo "         Installing Pinry            "            
+            echo ""
+            echo " Preparing to install Pinry"
+
+            sudo mkdir -p docker/pinry
+            cd docker/pinry
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/pinry_docker_compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1  
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install Pinry"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+
+            echo ""
+            echo " Go to http://${LOCALIP}:8981 to view your Pinry instance."
+            echo ""   
+            
+            cd
+    }
+
+    #    if [[ "$VKNJA" == [yY] ]]; then
+    #        
+    #        echo "        Installing Vikunja           "
+    #        
+    #        echo ""
+    #        echo "    1. Preparing to install Vikunja"
+    #
+    #        mkdir -p docker/vikunja
+    #        cd docker/vikunja
+    #
+    #        curl https://*****/docker_compose_filebrowser.yml -o docker-compose.yml >> ~/docker/homelab-install-script.log 2>&1
+    #
+    #        echo "    2. Running the docker-compose.yml to install Vikunja"
+    #        echo ""
+    #        echo ""
+    #
+    #        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+    #        ## Show a spinner for activity progress
+    #        pid=$! # Process Id of the previous running command
+    #        spin='-\|/'
+    #        i=0
+    #        while kill -0 $pid 2>/dev/null
+    #        do
+    #            i=$(( (i+1) %4 ))
+    #            printf "\r${spin:$i:1}"
+    #            sleep .1
+    #        done
+    #        printf "\r"
+
+    #        echo ""
+    #        echo ""
+    #        echo "    Go to http://${LOCALIP}:87 "
+    #        echo "      to view your Vikunja instance."
+    #        echo ""
+    #        echo ""       
+    #        
+    #        cd
+    #    fi
+
+    #    if [[ "$POLR" == [yY] ]]; then
+    #        
+    #        echo "        Installing POLR           "
+    #        
+    #        echo ""
+    #        echo "    1. Preparing to install POLR"
+    #
+    #        mkdir -p docker/polr
+    #        cd docker/polr
+    #
+    #        curl https://*****/docker_compose_filebrowser.yml -o docker-compose.yml >> ~/docker/homelab-install-script.log 2>&1
+
+    #        echo "    2. Running the docker-compose.yml to install POLR"
+    #        echo ""
+    #        echo ""
+
+    #        (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+    #        ## Show a spinner for activity progress
+    #        pid=$! # Process Id of the previous running command
+    #        spin='-\|/'
+    #        i=0
+    #        while kill -0 $pid 2>/dev/null
+    #        do
+    #            i=$(( (i+1) %4 ))
+    #            printf "\r${spin:$i:1}"
+    #            sleep .1
+    #        done
+    #        printf "\r"
+
+    #        echo ""
+    #        echo ""
+    #        echo "    Go to http://${LOCALIP}:88 "
+    #        echo "      to view your POLR instance."
+    #        echo ""
+    #        echo ""       
+    #        
+    #        cd
+    #    fi
+
+    installWhoogle()
+    {
+            
+            echo "        Installing Whoogle           "            
+            echo ""
+            echo " Preparing to install Whoogle"
+
+            sudo mkdir -p docker/whoogle
+            cd docker/whoogle
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/whoogle-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1   
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install Whoogle"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:8082 to view your Whoogle instance."
+            echo ""         
+            cd
+    }
+
+    installWikiJS()
+    {
+            
+            echo "        Installing Wiki.Js           "
+            echo ""
+            echo " Preparing to install Wiki.Js"
+
+            sudo mkdir -p docker/wikijs
+            cd docker/wikijs
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/wikijs-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1  
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install Wiki.Js"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:8084 to view your Wiki.Js instance."
+            echo ""     
+            
+            cd
+    }
+
+    installJDownloader()
+    {
+            
+            echo "      Installing JDownloader         "     
+            echo ""
+            echo " Preparing to install JDownloader"
+
+            sudo mkdir -p docker/jdownloader
+            cd docker/jdownloader
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/jdown-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install JDownloader"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:5800 to view your JDownloader instance."
+            echo ""
+            
+            cd
+    }
+
+    installDashy()
+    {
+            
+            echo "          Installing Dashy           "           
+            echo ""
+            echo " Preparing to install Dashy"
+
+            sudo mkdir -p docker/dashy
+            sudo mkdir -p docker/dashy/public
+            sudo mkdir -p docker/dashy/icons
+            
+            cd docker/dashy/icons
+
+            (sudo git clone https://github.com/walkxcode/dashboard-icons.git) >> ~/docker/homelab-install-script.log 2>&1
+
+            cd 
+
+            cd docker/dashy/public
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/dashy-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+    
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            
+            echo " Running the docker-compose.yml to install Dashy"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Go to http://${LOCALIP}:4000 to setup your Dashy instance."
+            echo ""       
+            
+            cd
+    }
+
+    installWatchT()
+    {
+            
+            echo "       Installing Watchtower        "         
+            echo ""
+            # Pull the Watchtower docker-compose file from github
+            echo " Pulling a default Watchtower docker-compose.yml file."
+
+            sudo mkdir -p docker/watchtower
+            cd docker/watchtower
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Media%20Server%20Package/watchtower-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
+
+            (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/Variables/env -o .env) >> ~/docker/homelab-install-script.log 2>&1
+
+            (find . -type f -exec sed -i 's,user_id,'"$(echo "$_uid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,group_id,'"$(echo "$_gid"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,time_zone,'"$(echo "$WPTZ"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_conf,'"$(echo "$INSPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_movies,'"$(echo "$MOVPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_series,'"$(echo "$SHWPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_down,'"$(echo "$DWNPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampleuser,'"$(echo "$WPUNAME"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplepass,'"$(echo "$WPPSWD"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,examplemail,'"$(echo "$WPMLID"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,exampledomain,'"$(echo "$WPDMN"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+            (find . -type f -exec sed -i 's,path_for_nxtdata,'"$(echo "$NXTPTH"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
+
+            echo " Running the docker-compose.yml to install and start Watchtower"
+            echo ""
+            (sudo docker-compose up -d) >> ~/docker/homelab-install-script.log 2>&1 &
+            spinner $!
+            echo ""
+            echo " Once installed, the Watchtower instance will automatically start checking for updates to the applications once every 24 hours."
+            echo ""  
+            cd
+    }
+
+  echo ""
+  echo ""
+  echo "   ____                           _      _                    ";
+  echo "  / ___| ___ _ __   ___ _ __ __ _| |    / \   _ __  _ __  ___ ";
+  echo " | |  _ / _ | '_ \ / _ | '__/ _\'| |   / _ \ | '_ \| '_ \/ __|";
+  echo " | |_| |  __| | | |  __| | | (_| | |  / ___ \| |_) | |_) \__ \'";
+  echo "  \____|\___|_| |_|\___|_|  \__,_|_| /_/   \_| .__/| .__/|___/";
+  echo "                                             |_|   |_|        ";
+  echo ""
+  echo ""
+
+    # Installing Docker, Docker Compose.
+    DockCheck
+
+    whiptail --msgbox --title "General Apps Installation" "Now, you will be shown a list with a short description of various applications supported by me(as of now)." 20 110     
+    whiptail --msgbox --title "Installation Path" "Before that, please provide the path of the directory where you want the applications to be installed. This is required for proper configuration.\nIf the folder doesn't exist, it will be created for future use. " 20 110
+    whiptail --msgbox --title "Installation Path" "Provide the path in the format of '/data/path' without the trailing '/' Eg: /docker/apps (or) /home/$USER/apps etc. "
+    INSPTH=$(whiptail --inputbox --title "Installation Path" "Specify the path to install the applications:" 20 110 3>&1 1>&2 2>&3)
+    (sudo mkdir "$INSPTH" -p)
+    echo ""
+    echo ""
+
+  APP_CHOICES=$(whiptail --separate-output --checklist "Choose options" 18 55 10 \
+    "1" "Nginx Proxy manager        " OFF \
+    "2" "File Browser       " OFF \
+    "3" "Snapdrop       " OFF \
+    "4" "Code Server        " OFF \
+    "5" "Dillinger        " OFF \
+    "6" "Cryptgeon        " OFF \
+    "7" "Vaultwarden        " OFF \
+    "8" "Uptime Kuma        " OFF \
+    "9" "Trilium Notes        " OFF \
+    "10" "Pinry       " OFF \
+    "11" "Whoogle       " OFF \
+    "12" "Wiki.Js       " OFF \
+    "13" "JDownloader       " OFF \
+    "14" "Dashy       " OFF\
+    "15" "Watchtower        " OFF 3>&1 1>&2 2>&3)
+
+  if [ -z "$APP_CHOICES" ]; then
+    echo "No option was chosen (user hit Cancel)"
+  else
+    for APP_CHOICE in $APP_CHOICES; do
+      case "$APP_CHOICE" in
+      "1")
+        installNginxProxyManager
+        ;;
+      "2")
+        installFilebrowser
+        ;;
+      "3")
+        installSnapdrop
+        ;;
+      "4")
+        installCodeserver
+        ;;
+      "5")
+        installDillinger
+        ;;
+      "6")
+        installCryptgeon
+        ;;
+      "7")
+        installVaultwarden
+        ;;
+      "8")
+        installUptimeK
+        ;;
+      "9")
+        installTrilium
+        ;;
+      "10")
+        installPinry
+        ;;
+      "11")
+        installWhoogle
+        ;;
+      "12")
+        installWikiJS
+        ;;
+      "13")
+        installJDownloader
+        ;;
+      "14")
+        installDashy
+        ;;
+      "15")
+        installWatchT
+        ;;
+      *)
+        echo "Unsupported item $APP_CHOICE!" >&2
+        exit 1
+        ;;
+      esac
     done
-    printf "\r"
-echo ""
-echo " Navigate to https://${LOCALIP}:9443 to start playing with your new Docker setup."
-echo ""
-echo " (Portainer generates an SSL certificate by default in the new version, that's why we use https:// instead of http://)"
-echo ""
-echo " That's it $username, the installation of the selected applications are done. Thank you for using the script." 
-echo ""
-echo ""
-sleep 1s
+  fi
 
-exit 1
+  # Installing portainer for Docker GUI Management
+  installportainer
+  cd
+  exit 1
 
 }
 
-echo ""
-echo ""
-
+######Start of the Script######
 clear
 # Caching sudo access for install completion
 sudo true
@@ -2485,77 +2817,86 @@ echo ""
 echo ""
 echo ""
 (sudo mkdir ~/docker)
-echo " Welcome to the interactive and customizable Homelab Setup."
-read -p " Please provide your name - " username
-echo ""
-echo " It's nice to interact with you $username. Thank you for choosing to install Docker with this script."
-sleep 1s
-echo ""
-echo " You will be asked a series of questions, which lets you customize this installation to your needs."
-echo " Please be mindful of the instructions and also grab a cup of coffee."
-sleep 1s
-echo ""
-echo " Let's start by figuring out which distribution of Debian am I being used in."
-echo ""
-echo "    This system is based on: "
-echo ""
-echo "        --  " $(lsb_release -i)
-echo "        --  " $(lsb_release -d)
-echo "        --  " $(lsb_release -r)
-echo "        --  " $(lsb_release -c)
-echo ""
-echo "------------------------------------------------"
-echo ""
-echo ""
 
-echo " Before proceeding with the installation, you need to provide some basic details to be used for configuration. "
-echo ""
-echo " Provide your desired username for the applications and databases. "
-echo ""
-read -rp " Desired Username: " WPUNAME
-sleep 1s
-echo ""
-echo " Provide your desired password for the applications and databases. "
-echo " For security reasons, the password that you type will not be visible. So, please make sure that you type the password correctly."
-echo ""
-read -rsp " Desired Password: " WPPSWD
+# Find the rows and columns. Will default to 80x24 if it can not be detected.
+screen_size=$(stty size 2>/dev/null || echo 24 80)
+rows=$(echo $screen_size | awk '{print $1}')
+columns=$(echo $screen_size | awk '{print $2}')
+
+# Divide by two so the dialogs take up half of the screen, which looks nice.
+r=$(( rows / 2 ))
+c=$(( columns / 2 ))
+# Unless the screen is tiny
+r=$(( r < 20 ? 20 : r ))
+c=$(( c < 70 ? 70 : c ))
+
+# Display the welcome dialog
+whiptail --msgbox --backtitle "Welcome" --title "Ultimate Homelab Setup" "This installer will set up Docker, and a set of different self-hostable applications!" 20 110
+
+# Explain the need for a static address
+whiptail --msgbox --backtitle "Documentation" --title "Read the Docs" "This installer has support for multiple applications and some are provided as packages.
+
+There are several package specific instructions and it is strongly recommended to go through the documentation over at GitHub prior to starting this installation.
+
+Please view the documentation at the following URL: https://github.com/Jayavel-S/homelab-ultimate/tree/main/docs" 20 110
+
+username=$(whiptail --inputbox "Welcome to the interactive and customizable Homelab Setup. 
+
+Please enter your name:" 20 110 3>&1 1>&2 2>&3)
+
+whiptail --msgbox  "It's nice to interact with you $username. Thank you for choosing to install Docker with this script. 
+
+Most of the applications uses basic authentication. Hence you'd need to provide your desired Username and Password for the applications and databases to be setup properly." 20 110
+
+WPUNAME=$(whiptail --inputbox "Provide your desired Username:" 20 110 3>&1 1>&2 2>&3)
+
+WPPSWD=$(whiptail --passwordbox "Provide a strong password:" 20 110 3>&1 1>&2 2>&3)
+
 LOCALIP=$(ip a | grep "scope global" | head -1 | awk '{print $2}' | sed 's|/.*||') > ~/docker/homelab-install-script.log
 CLOUDIP=$(host myip.opendns.com resolver1.opendns.com | grep "myip.opendns.com has" | awk '{print $4}') >> ~/docker/homelab-install-script.log
 _uid="$(id -u)">> ~/docker/homelab-install-script.log
 _gid="$(id -g)">> ~/docker/homelab-install-script.log
-sleep 1s
-echo ""
-echo ""
-echo "Provide the timezone in your location. "
-echo "If you are not familiar with this, you can visit http://www.timezoneconverter.com/cgi-bin/findzone.tzc and select your country."
-echo "Make sure to provide it in the correct format. Eg: Asia/Kolkata."
-echo ""
-read -rp "Timezone: " WPTZ
-sleep 1s
-echo ""
-echo ""
-echo "Thank you for the input. Note that this script comes with some packages."
-echo "You can choose from a list of options as detailed in the Readme page in Github."
-echo ""
-sleep 1s
-echo ""
-PS3="Please select the package that you would like to install: "
-select _ in \
-    "Just Docker, Docker-Compose and Portainer." \
-    "Nextcloud AIO Package (Transform your system into a Google Drive alternative, with more advanced features.)" \
-    "Media Server Package (Transform your system into a home media server.)" \
-    "Website package (Transforms your system into a Wordpress Host.)" \
-    "General Apps (A list of self-hostable applications to choose from.)" \
-    "End this Installer"
-    
-do
-  case $REPLY in
-    1) installDock ;;
-    2) installNxtCld ;;
-    3) installMSP ;;
-    4) installWP ;;
-    5) installApps ;;
-    6) exit ;;
-    *) echo "Invalid selection, please try again." ;;
-  esac
-done
+
+whiptail --msgbox  "Some applications require you to provide your Time Zone for proper configuration.
+
+If you are not familiar with this, you can visit http://www.timezoneconverter.com/cgi-bin/findzone.tzc and select your country." 20 110
+
+WPTZ=$(whiptail --inputbox "Provide the timezone in your location. Eg: Asia/Kolkata" 20 110 3>&1 1>&2 2>&3)
+
+whiptail --msgbox  "Thank you for the input. Now, you can choose from a list of options as detailed in the Readme page in Github." 20 110
+
+MENU_CHOICES=$(whiptail --title "Package Selection" --menu "Choose an option" 20 110 8 \
+  "1" "Basic Package - Just install Docker, Docker-Compose and Portainer." \
+  "2" "Nextcloud Package - Install the Nextcloud AIO instance." \
+  "3" "Website Package - Install WordPress, Matomo Analytics and Nginx Proxy Manager." \
+  "4" "Media Server Package - Set up applications that helps in managing home media." \
+  "5" "General Apps Package - A collection of different applications that can be self-hosted." 3>&1 1>&2 2>&3)
+
+if [ -z "$MENU_CHOICES" ]; then
+  echo "No option was selected, the installer will exit now."
+else
+  for MENU_CHOICE in $MENU_CHOICES; do
+    case "$MENU_CHOICE" in
+    "1")
+      installDock
+      ;;
+    "2")
+      installNxtCld
+      ;;
+    "3")
+      installWP
+      ;;
+    "4")
+      installMSP
+      ;;
+    "5")
+      installApps
+      ;;
+    *)
+      echo "Unsupported item $MENU_CHOICE!" >&2
+      exit 1
+      ;;
+    esac
+  done
+fi
+echo "Installation Completed"
