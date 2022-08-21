@@ -69,6 +69,25 @@ Choosing any option will get the default dependencies taken care of (i.e.) the s
 
 **[Back to Top](#ultimate-homelab-setup)**
 
+## Changelog
+
+<details><summary>Version 2.0</summary>
+<p>
+
+   - Added UI like support for getting user inputs using Whiptail.
+   - Users can now just select the apps they want installed from the check list displayed.
+   - Added Portainer check to see if Portainer is already installed.
+   - Provided a selection menu for users to choose if they want to install Portainer or not.
+   - Fixed the spinner! (previous version sometimes ended abruptly in some devices).
+
+</p>
+</details>
+
+## Currently working on
+
+   - A way to get user's input for assigning ports to the application during install.
+   - Trying to make it compatible for other distros.
+   - Making a separate file that houses all applications and can be invoked from the main script for ease of use.
 
 ### Legal Terms
 
