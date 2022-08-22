@@ -89,6 +89,9 @@ Choosing any option will get the default dependencies taken care of (i.e.) the s
    - Trying to make it compatible for other distros.
    - Making a separate file that houses all applications and can be invoked from the main script for ease of use.
 
+### Credits
+The main inspiration for doing this was from the good folks like **[DBTech](https://www.youtube.com/c/DBTechYT)**, **[Awesome Open Source](https://www.youtube.com/c/AwesomeOpenSource)**, **[Techno Tim](https://www.youtube.com/c/TechnoTimLive)**, **[The Digital Life](https://www.youtube.com/c/TheDigitalLifeTech)** and many other people who does awesome work at making tech simple for people. 
+
 ### Legal Terms
 
 Do note that there is no warranty provided with this script and it is completely open for everyone to provide contributions. This script is free to use in any private or a commercial deployment.
