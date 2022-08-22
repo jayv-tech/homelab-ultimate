@@ -2,6 +2,10 @@
 
 <p align="center" >Shell based script to install Docker, and a set of different self-hostable applications compatible with Ubuntu/Debian based systems.</p>
 
+<p align="center">
+<img src="https://img.shields.io/badge/Built%20with-%E2%9D%A4-ffffff"> <img src="https://img.shields.io/badge/Powered%20by-Coffee-ffffff"> <img src="https://img.shields.io/badge/License-GPLv3-ffffff">  
+</p>
+
 ## Prerequisites
   - You need to have an Ubuntu/Debian-based machine.
   - A good network connection to download the applications.
@@ -90,7 +94,7 @@ Choosing any option will get the default dependencies taken care of (i.e.) the s
    - Making a separate file that houses all applications and can be invoked from the main script for ease of use.
 
 ### Credits
-The main inspiration for doing this was from the good folks like **[DBTech](https://www.youtube.com/c/DBTechYT)**, **[Awesome Open Source](https://www.youtube.com/c/AwesomeOpenSource)**, **[Techno Tim](https://www.youtube.com/c/TechnoTimLive)**, **[The Digital Life](https://www.youtube.com/c/TheDigitalLifeTech)** and many other people who does awesome work at making tech simple for people. 
+The main inspiration for doing this was from the good folks like **[DBTech](https://www.youtube.com/c/DBTechYT)**, **[Awesome Open Source](https://www.youtube.com/c/AwesomeOpenSource)**, **[Techno Tim](https://www.youtube.com/c/TechnoTimLive)**, **[The Digital Life](https://www.youtube.com/c/TheDigitalLifeTech)** and many others who does awesome work at making tech simpler for people. 
 
 ### Legal Terms
 
