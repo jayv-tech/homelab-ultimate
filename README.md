@@ -14,32 +14,10 @@
 
 Open Terminal (if using a desktop environment) or Putty/any SSH tool that you use (if using a server environment/headless machine) and connect to your instance. 
 
-1. Download the script by running
+Copy and paste the following:
 
-```sh 
-   wget https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/install.sh
 ```
-
-<details><summary>Getting permission denied error?</summary>
-<p>
-
-Just add `sudo` in front.
-
-```sh 
-   sudo wget https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/install.sh
-```
-
-</p>
-</details>
-
-2. Now, you need to provide 'executable' permissions to it.
-```sh 
-   sudo chmod +x ./install.sh
-```
-
-3. Run the script
-```sh 
-   ./install.sh
+curl -sSL https://jvte.ch/installer | sudo bash
 ```
 
 ## Features
