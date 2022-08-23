@@ -29,3 +29,7 @@ DATA_PATH=path_for_nxtdata
 #N8N specific Data
 N8N_BASIC_AUTH_USER=exampleuser
 N8N_BASIC_AUTH_PASSWORD=examplepass
+
+#Shlink Data
+DOMAIN=shlinkdomain
+GEO_KEY=geolitelicsnse
