@@ -1,0 +1,43 @@
+version: "3"
+
+volumes:
+  shlinkdb_storage:
+
+services:
+  shlink:
+    image: shlinkio/shlink:stable
+    restart: always
+    environment:
+      - TZ=${TZ}
+      - DEFAULT_DOMAIN=${DOMAIN}
+      - IS_HTTPS_ENABLED=true
+      - GEOLITE_LICENSE_KEY=${GEO_KEY}
+      - MULTI_SEGMENT_SLUGS_ENABLED=true
+      - DB_DRIVER=maria
+      - DB_USER=${MYSQL_USER}
+      - DB_NAME=shlink
+      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - DB_HOST=database      
+    depends_on:
+      - database
+    ports:
+      - 8080:8080
+
+  database:
+    image: mariadb
+    restart: always
+    environment:
+      - MARIADB_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MARIADB_DATABASE=shlink
+      - MARIADB_USER=${MYSQL_USER}
+      - MARIADB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - shlinkdb_storage:/var/lib/mysql
+
+  shlink-web-client:
+    image: shlinkio/shlink-web-client
+    restart: always
+    volumes:
+      - ${CONFIG}/shlink/servers.json:/usr/share/nginx/html/servers.json
+    ports:
+      - 8081:80
