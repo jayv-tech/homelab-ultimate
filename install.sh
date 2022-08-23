@@ -95,9 +95,9 @@ installDock()
         #### Try to check whether docker is installed and running - don't prompt if it is
         if [[ "$ISACT" != "active" ]]; then
 
-            echo ""
-            checkForUpdates
-            echo ""
+        echo ""
+        checkForUpdates
+        echo ""
 
             echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
             
@@ -109,14 +109,17 @@ installDock()
             echo "    "${DOCKERV}
             
             echo ""
-
+            sleep 3s
             echo " Starting the Docker Service"
             (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            sleep 10s
             echo ""
-    
+            echo " Done."
             echo " Adding this user account to the docker group for getting necessary permissions."      
             (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
             echo ""
+            echo " Done."
+            sleep 1s
             
         else
             echo ""
@@ -374,28 +377,31 @@ installNxtCld()
         #### Try to check whether docker is installed and running - don't prompt if it is
         if [[ "$ISACT" != "active" ]]; then
 
-          echo ""
-          checkForUpdates
-          echo ""
+        echo ""
+        checkForUpdates
+        echo ""
 
-          echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
-          
-          (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
-              spinner $!
-          echo ""
-          echo " The installation of Docker Engine is complete and the version installed was - "
-          DOCKERV=$(docker -v)
-          echo "    "${DOCKERV}
-          
-          echo ""
-
-          echo " Starting the Docker Service"
-          (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
-          echo ""
-  
-          echo " Adding this user account to the docker group for getting necessary permissions."      
-          (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
-          echo ""
+            echo " Now the installation of Docker Engine begins. Please be patient as this could take a while."
+            
+            (curl -fsSL https://get.docker.com | sh) >> ~/docker/homelab-install-script.log 2>&1 &
+                spinner $!
+            echo ""
+            echo " The installation of Docker Engine is complete and the version installed was - "
+            DOCKERV=$(docker -v)
+            echo "    "${DOCKERV}
+            
+            echo ""
+            sleep 3s
+            echo " Starting the Docker Service"
+            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            sleep 10s
+            echo ""
+            echo " Done."
+            echo " Adding this user account to the docker group for getting necessary permissions."      
+            (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
+            echo ""
+            echo " Done."
+            sleep 1s
             
         else
             echo ""
@@ -570,11 +576,27 @@ echo ""
 
       NXTPTH=$(whiptail --inputbox --title "Path Selection" "Now you need to provide the path of the directory to store your files and folders in Nextcloud.\nProvide the path in the format of '/data/path' without the trailing '/'. If the folder doesn't exist, it will automatically be created.\nEg: /home/${USER}/data (or) /mnt/data/nxtcld" 20 110 3>&1 1>&2 2>&3)
 
-      echo ""
-      (sudo mkdir "$NXTPTH" -p)>/dev/null        
-      (sudo chown -R 33:0 "$NXTPTH")>/dev/null
-      (sudo chmod -R 750 "$NXTPTH")>/dev/null
+        exitstatus=$?
       
+            if [ $exitstatus = 0 ]; then
+            
+                if [[ -d "$NXTPTH" ]]; then
+                    (sudo chown -R 33:0 "$NXTPTH")>/dev/null
+                    (sudo chmod -R 750 "$NXTPTH")>/dev/null
+                else    
+                    (sudo mkdir "$NXTPTH" -p)
+                    (sudo chown -R 33:0 "$NXTPTH")>/dev/null
+                    (sudo chmod -R 750 "$NXTPTH")>/dev/null
+                fi
+            
+            else
+                echo ""
+                echo "No input was provided, the installer has exited."
+                echo ""
+                sleep 1s
+                continue
+            fi
+
       echo ""
       echo " Running the docker commands to install and start Nextcloud instance."
       echo ""
@@ -736,14 +758,17 @@ installMSP()
             echo "    "${DOCKERV}
             
             echo ""
-
+            sleep 3s
             echo " Starting the Docker Service"
             (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            sleep 10s
             echo ""
-    
+            echo " Done."
             echo " Adding this user account to the docker group for getting necessary permissions."      
             (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
             echo ""
+            echo " Done."
+            sleep 1s
             
         else
             echo ""
@@ -1263,14 +1288,85 @@ installMSP()
   Provide the path in the format of '/data/path' without the trailing '/' \n Eg: /docker/apps (or) /home/$USER/movies etc." 20 110 3>&1 1>&2 2>&3       
   echo ""
   INSPTH=$(whiptail --inputbox --title "Installation Path" "Specify the path to install the applications:" 20 110 3>&1 1>&2 2>&3)
+    
+    exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+    
+        if [[ -d "$INSPTH" ]]; then
+            sleep 1s
+        else    
+            (sudo mkdir "$INSPTH" -p)
+        fi
+       
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        continue
+    fi
+
   MOVPTH=$(whiptail --inputbox --title "Media Path" "Specify the path to Movies:" 20 110 3>&1 1>&2 2>&3)
+  
+    exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+    
+        if [[ -d "$MOVPTH" ]]; then
+            sleep 1s
+        else    
+            (sudo mkdir "$MOVPTH" -p)
+        fi
+       
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        continue
+    fi
+
   SHWPTH=$(whiptail --inputbox --title "Media Path" "Specify the path to TV Shows:" 20 110 3>&1 1>&2 2>&3)
+  
+    exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+    
+        if [[ -d "$SHWPTH" ]]; then
+            sleep 1s
+        else    
+            (sudo mkdir "$SHWPTH" -p)
+        fi
+       
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        continue
+    fi
+
   DWNPTH=$(whiptail --inputbox --title "Media Path" "Specify the path to Downloads:" 20 110 3>&1 1>&2 2>&3)
-  echo ""
-  (sudo mkdir "$INSPTH" -p)
-  (sudo mkdir "$MOVPTH" -p)
-  (sudo mkdir "$SHWPTH" -p)
-  (sudo mkdir "$DWNPTH" -p)
+  
+    exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+    
+        if [[ -d "$DWNPTH" ]]; then
+            sleep 1s
+        else    
+            (sudo mkdir "$DWNPTH" -p)
+        fi
+       
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        continue
+    fi
+  
   echo ""
   echo " Thank you for the input. Now you'll see a screen from which you need to select the applications that you'd like to have installed."
   echo " Just use the arrow keys for navigation and space bar to select/unselect the items." 
@@ -1290,45 +1386,53 @@ installMSP()
     "8" "Jackett        " OFF \
     "9" "Watchtower       " OFF 3>&1 1>&2 2>&3)
 
-  if [ -z "$MSP_CHOICES" ]; then
-    echo "No option was chosen (user hit Cancel)"
-  else
-    for MSP_CHOICE in $MSP_CHOICES; do
-      case "$MSP_CHOICE" in
-      "1")
-        installPlex
-        ;;
-      "2")
-        installTautulli
-        ;;
-      "3")
-        installSonarr
-        ;;
-      "4")
-        installRadarr
-        ;;
-      "5")
-        installSabnzbd
-        ;;
-      "6")
-        installDeluge
-        ;;
-      "7")
-        installOverseerr
-        ;;
-      "8")
-        installJackett
-        ;;
-      "9")
-        installWatchT
-        ;;
-      *)
-        echo "Unsupported item $MSP_CHOICE!" >&2
-        exit 1
-        ;;
-      esac
-    done
-  fi
+    exitstatus=$?
+        
+        if [ $exitstatus = 0 ]; then
+            for MSP_CHOICE in $MSP_CHOICES; do
+                case "$MSP_CHOICE" in
+                "1")
+                    installPlex
+                    ;;
+                "2")
+                    installTautulli
+                    ;;
+                "3")
+                    installSonarr
+                    ;;
+                "4")
+                    installRadarr
+                    ;;
+                "5")
+                    installSabnzbd
+                    ;;
+                "6")
+                    installDeluge
+                    ;;
+                "7")
+                    installOverseerr
+                    ;;
+                "8")
+                    installJackett
+                    ;;
+                "9")
+                    installWatchT
+                    ;;
+                *)
+                    echo "Unsupported item $MSP_CHOICE!" >&2
+                    exit 1
+                    ;;
+                esac
+            done
+
+        else
+            echo ""
+            echo "No option was selected, the installer has exited."
+            echo ""
+            sleep 1s
+            exit
+        fi
+
   echo ""
           # Installing portainer for Docker GUI Management
           installportainer
@@ -1432,14 +1536,17 @@ installWP()
             echo "    "${DOCKERV}
             
             echo ""
-
+            sleep 3s
             echo " Starting the Docker Service"
             (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            sleep 10s
             echo ""
-    
+            echo " Done."
             echo " Adding this user account to the docker group for getting necessary permissions."      
             (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
             echo ""
+            echo " Done."
+            sleep 1s
             
         else
             echo ""
@@ -1719,38 +1826,71 @@ installWP()
   WPMEM=$(whiptail --inputbox --title "Memory Limit" "Specify a comfortable memory limit.
   
   This has to be provided in megabytes (Eg: 64 or 128 etc.)" 20 110 3>&1 1>&2 2>&3)
+
+    exitstatus=$?
+        
+        if [ $exitstatus = 0 ]; then
+        sleep 1s    
+        else
+            echo ""
+            echo "No input was provided, the installer has exited."
+            echo ""
+            sleep 1s
+            exit
+        fi
+
   WPFLM=$(whiptail --inputbox --title "File Limit" "The maximum file size limit needs to be set. 
   
   This is to ensure that the uploads are done properly to your instance. (Eg: 128 or 256 etc.)" 20 110 3>&1 1>&2 2>&3)
 
+    exitstatus=$?
+        
+        if [ $exitstatus = 0 ]; then
+        sleep 1s    
+        else
+            echo ""
+            echo "No input was provided, the installer has exited."
+            echo ""
+            sleep 1s
+            exit
+        fi
+
   whiptail --msgbox  "Thank you for the input, now select the packages you'd like to have installed." 20 110 3>&1 1>&2 2>&3
   
-  WP_CHOICES=$(whiptail --separate-output --checklist "Choose options" 18 55 10 \
+WP_CHOICES=$(whiptail --separate-output --checklist "Choose options" 18 55 10 \
     "1" "Wordpress        " ON \
     "2" "Matomo Analytics       " OFF \
     "3" "Nginx Proxy Manager        " OFF 3>&1 1>&2 2>&3)
 
-  if [ -z "$WP_CHOICES" ]; then
-    echo "No option was chosen (user hit Cancel)"
-  else
-    for WP_CHOICE in $WP_CHOICES; do
-      case "$WP_CHOICE" in
-      "1")
-        installWordpress
-        ;;
-      "2")
-        installMatomo
-        ;;
-      "3")
-        installNginxProxyManager
-        ;;
-      *)
-        echo "Unsupported item $WP_CHOICE!" >&2
-        exit 1
-        ;;
-      esac
-    done
-  fi
+exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+        for WP_CHOICE in $WP_CHOICES; do
+            case "$WP_CHOICE" in
+            "1")
+            installWordpress
+            ;;
+            "2")
+            installMatomo
+            ;;
+            "3")
+            installNginxProxyManager
+            ;;
+            *)
+            echo "Unsupported item $WP_CHOICE!" >&2
+            exit 1
+            ;;
+            esac
+        done
+        
+    else
+        echo ""
+        echo "No option was selected, the installer has exited."
+        echo ""
+        sleep 1s
+        exit
+    fi
+
   # Installing portainer for Docker GUI Management
   installportainer
   cd
@@ -1850,14 +1990,17 @@ installApps()
             echo "    "${DOCKERV}
             
             echo ""
-
+            sleep 3s
             echo " Starting the Docker Service"
             (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            sleep 10s
             echo ""
-    
+            echo " Done."
             echo " Adding this user account to the docker group for getting necessary permissions."      
             (sudo usermod -aG docker "${USER}") >> ~/docker/homelab-install-script.log 2>&1
             echo ""
+            echo " Done."
+            sleep 1s
             
         else
             echo ""
@@ -1980,30 +2123,30 @@ installApps()
         "3" "Business Edition - Installation of Portainer's Business Edition." \
         "4" "Nevermind, I don't need Portainer to be setup now." 3>&1 1>&2 2>&3)
 
-      if [ -z "$PTAIN_CHOICES" ]; then
-        echo "No option was selected, the installer will exit now."
-      else
-        for PTAIN_CHOICE in $PTAIN_CHOICES; do
-          case "$PTAIN_CHOICE" in
-          "1")
-            PTAINCE_CHECK
-            ;;
-          "2")
-            PTAINAG_CHECK
-            ;;
-          "3")
-            PTAINBE_CHECK
-            ;;
-          "4")
-            exit 1
-            ;;
-          *)
-            echo "Unsupported item $PTAIN_CHOICE!" >&2
-            exit 1
-            ;;
-          esac
-        done
-      fi
+        if [ -z "$PTAIN_CHOICES" ]; then
+            echo "No option was selected, the installer will exit now."
+        else
+            for PTAIN_CHOICE in $PTAIN_CHOICES; do
+            case "$PTAIN_CHOICE" in
+            "1")
+                PTAINCE_CHECK
+                ;;
+            "2")
+                PTAINAG_CHECK
+                ;;
+            "3")
+                PTAINBE_CHECK
+                ;;
+            "4")
+                exit 1
+                ;;
+            *)
+                echo "Unsupported item $PTAIN_CHOICE!" >&2
+                exit 1
+                ;;
+            esac
+            done
+        fi
     }
 
     installNginxProxyManager()
@@ -2209,7 +2352,7 @@ installApps()
     installCryptgeon()
     {
             
-            echo "          Install Cryptgeon         "            
+            echo "          Installing Cryptgeon         "            
             echo ""
             # Pull the cryptgeon docker-compose file from github
             echo " Preparing to install Cryptgeon"
@@ -2219,12 +2362,22 @@ installApps()
 
             (sudo curl https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/General%20Apps/cryptgeon-docker-compose.yml -o docker-compose.yml) >> ~/docker/homelab-install-script.log 2>&1
 
-            whiptail --msgbox  --title "Input Required" "Cryptgeon uses your system's RAM to store the data and share it with full encryption. This is done with the help of Redis container.
-            
-            Hence you need to specify a comfortable size limit (in MB) for the application to reserve in RAM." 20 110
+            whiptail --msgbox  --title "Input Required" "Cryptgeon uses your system's RAM to store the data and share it with full encryption. This is done with the help of Redis container.\n\nHence you need to specify a comfortable size limit (in MB) for the application to reserve in RAM." 20 110
             
             CPTGNLM=$(whiptail --inputbox --title "Size Limit" "Specify size limit in megabytes (Eg: 32):" 20 110 3>&1 1>&2 2>&3)
             
+                exitstatus=$?
+        
+                if [ $exitstatus = 0 ]; then
+                sleep 1s    
+                else
+                    echo ""
+                    echo "No input was provided, the installer has exited."
+                    echo ""
+                    sleep 1s
+                    exit
+                fi
+
             (find . -type f -exec sed -i 's,SZLM,'"$(echo "$CPTGNLM"),g" {} +) >> ~/docker/homelab-install-script.log 2>&1
 
             echo " Running the docker-compose.yml to install the application."
@@ -2707,10 +2860,28 @@ installApps()
     DockCheck
 
     whiptail --msgbox --title "General Apps Installation" "Now, you will be shown a list with a short description of various applications supported by me(as of now)." 20 110     
-    whiptail --msgbox --title "Installation Path" "Before that, please provide the path of the directory where you want the applications to be installed. This is required for proper configuration.\nIf the folder doesn't exist, it will be created for future use. " 20 110
-    whiptail --msgbox --title "Installation Path" "Provide the path in the format of '/data/path' without the trailing '/' Eg: /docker/apps (or) /home/$USER/apps etc. "
+    whiptail --msgbox --title "Installation Path" "Before that, please provide the path of the directory where you want the applications to be installed.\n\n This is required for proper configuration.\n\nIf the folder doesn't exist, it will be created for future use. " 20 110
+    whiptail --msgbox --title "Installation Path" "Provide the path in the format of '/data/path' without the trailing '/' Eg: /docker/apps (or) /home/$USER/apps etc. " 20 110
+    
     INSPTH=$(whiptail --inputbox --title "Installation Path" "Specify the path to install the applications:" 20 110 3>&1 1>&2 2>&3)
-    (sudo mkdir "$INSPTH" -p)
+    
+    exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+    
+        if [[ -d "$INSPTH" ]]; then
+            sleep 1s
+        else    
+            (sudo mkdir "$INSPTH" -p)
+        fi
+       
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        exit
+    fi    
     echo ""
     echo ""
 
@@ -2731,63 +2902,68 @@ installApps()
     "14" "Dashy       " OFF\
     "15" "Watchtower        " OFF 3>&1 1>&2 2>&3)
 
-  if [ -z "$APP_CHOICES" ]; then
-    echo "No option was chosen (user hit Cancel)"
-  else
-    for APP_CHOICE in $APP_CHOICES; do
-      case "$APP_CHOICE" in
-      "1")
-        installNginxProxyManager
-        ;;
-      "2")
-        installFilebrowser
-        ;;
-      "3")
-        installSnapdrop
-        ;;
-      "4")
-        installCodeserver
-        ;;
-      "5")
-        installDillinger
-        ;;
-      "6")
-        installCryptgeon
-        ;;
-      "7")
-        installVaultwarden
-        ;;
-      "8")
-        installUptimeK
-        ;;
-      "9")
-        installTrilium
-        ;;
-      "10")
-        installPinry
-        ;;
-      "11")
-        installWhoogle
-        ;;
-      "12")
-        installWikiJS
-        ;;
-      "13")
-        installJDownloader
-        ;;
-      "14")
-        installDashy
-        ;;
-      "15")
-        installWatchT
-        ;;
-      *)
-        echo "Unsupported item $APP_CHOICE!" >&2
-        exit 1
-        ;;
-      esac
-    done
-  fi
+    if [ $exitstatus = 0 ]; then
+        for APP_CHOICE in $APP_CHOICES; do
+            case "$APP_CHOICE" in
+                "1")
+                    installNginxProxyManager
+                    ;;
+                "2")
+                    installFilebrowser
+                    ;;
+                "3")
+                    installSnapdrop
+                    ;;
+                "4")
+                    installCodeserver
+                    ;;
+                "5")
+                    installDillinger
+                    ;;
+                "6")
+                    installCryptgeon
+                    ;;
+                "7")
+                    installVaultwarden
+                    ;;
+                "8")
+                    installUptimeK
+                    ;;
+                "9")
+                    installTrilium
+                    ;;
+                "10")
+                    installPinry
+                    ;;
+                "11")
+                    installWhoogle
+                    ;;
+                "12")
+                    installWikiJS
+                    ;;
+                "13")
+                    installJDownloader
+                    ;;
+                "14")
+                    installDashy
+                    ;;
+                "15")
+                    installWatchT
+                    ;;
+                *)
+                    echo "Unsupported item $APP_CHOICE!" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+
+    else
+        echo ""
+        echo "No option was selected, the installer has exited."
+        echo ""
+        sleep 1s
+        exit
+    fi
 
   # Installing portainer for Docker GUI Management
   installportainer
@@ -2816,20 +2992,11 @@ echo "                                                          |_|             
 echo ""
 echo ""
 echo ""
-(sudo mkdir ~/docker)
-
-# Find the rows and columns. Will default to 80x24 if it can not be detected.
-screen_size=$(stty size 2>/dev/null || echo 24 80)
-rows=$(echo $screen_size | awk '{print $1}')
-columns=$(echo $screen_size | awk '{print $2}')
-
-# Divide by two so the dialogs take up half of the screen, which looks nice.
-r=$(( rows / 2 ))
-c=$(( columns / 2 ))
-# Unless the screen is tiny
-r=$(( r < 20 ? 20 : r ))
-c=$(( c < 70 ? 70 : c ))
-
+if [[ -d ~/docker ]]; then
+    sleep 1s
+else    
+    (sudo mkdir ~/docker)
+fi
 # Display the welcome dialog
 whiptail --msgbox --backtitle "Welcome" --title "Ultimate Homelab Setup" "This installer will set up Docker, and a set of different self-hostable applications!" 20 110
 
@@ -2844,13 +3011,45 @@ username=$(whiptail --inputbox "Welcome to the interactive and customizable Home
 
 Please enter your name:" 20 110 3>&1 1>&2 2>&3)
 
-whiptail --msgbox  "It's nice to interact with you $username. Thank you for choosing to install Docker with this script. 
-
-Most of the applications uses basic authentication. Hence you'd need to provide your desired Username and Password for the applications and databases to be setup properly." 20 110
+exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+        whiptail --msgbox  "It's nice to interact with you $username. Thank you for choosing to install Docker with this script.\n\nMost of the applications uses basic authentication. Hence you'd need to provide your desired Username and Password for the applications and databases to be setup properly." 20 110
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        exit
+    fi
 
 WPUNAME=$(whiptail --inputbox "Provide your desired Username:" 20 110 3>&1 1>&2 2>&3)
 
+exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+    sleep 1s    
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        exit
+    fi
+
 WPPSWD=$(whiptail --passwordbox "Provide a strong password:" 20 110 3>&1 1>&2 2>&3)
+
+exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+    sleep 1s    
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        exit
+    fi
 
 LOCALIP=$(ip a | grep "scope global" | head -1 | awk '{print $2}' | sed 's|/.*||') > ~/docker/homelab-install-script.log
 CLOUDIP=$(host myip.opendns.com resolver1.opendns.com | grep "myip.opendns.com has" | awk '{print $4}') >> ~/docker/homelab-install-script.log
@@ -2863,6 +3062,18 @@ If you are not familiar with this, you can visit http://www.timezoneconverter.co
 
 WPTZ=$(whiptail --inputbox "Provide the timezone in your location. Eg: Asia/Kolkata" 20 110 3>&1 1>&2 2>&3)
 
+exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+    sleep 1s    
+    else
+        echo ""
+        echo "No input was provided, the installer has exited."
+        echo ""
+        sleep 1s
+        exit
+    fi
+
 whiptail --msgbox  "Thank you for the input. Now, you can choose from a list of options as detailed in the Readme page in Github." 20 110
 
 MENU_CHOICES=$(whiptail --title "Package Selection" --menu "Choose an option" 20 110 8 \
@@ -2872,31 +3083,39 @@ MENU_CHOICES=$(whiptail --title "Package Selection" --menu "Choose an option" 20
   "4" "Media Server Package - Set up applications that helps in managing home media." \
   "5" "General Apps Package - A collection of different applications that can be self-hosted." 3>&1 1>&2 2>&3)
 
-if [ -z "$MENU_CHOICES" ]; then
-  echo "No option was selected, the installer will exit now."
-else
-  for MENU_CHOICE in $MENU_CHOICES; do
-    case "$MENU_CHOICE" in
-    "1")
-      installDock
-      ;;
-    "2")
-      installNxtCld
-      ;;
-    "3")
-      installWP
-      ;;
-    "4")
-      installMSP
-      ;;
-    "5")
-      installApps
-      ;;
-    *)
-      echo "Unsupported item $MENU_CHOICE!" >&2
-      exit 1
-      ;;
-    esac
-  done
-fi
+exitstatus=$?
+      
+    if [ $exitstatus = 0 ]; then
+        for MENU_CHOICE in $MENU_CHOICES; do
+            case "$MENU_CHOICE" in
+                "1")
+                installDock
+                ;;
+                "2")
+                installNxtCld
+                ;;
+                "3")
+                installWP
+                ;;
+                "4")
+                installMSP
+                ;;
+                "5")
+                installApps
+                ;;
+                *)
+                echo "Unsupported item $MENU_CHOICE!" >&2
+                exit 1
+                ;;
+            esac
+        done
+
+    else
+        echo ""
+        echo "No option was selected, the installer has exited."
+        echo ""
+        sleep 1s
+        exit
+    fi
+
 echo "Installation Completed"
