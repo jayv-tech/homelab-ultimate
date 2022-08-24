@@ -113,6 +113,7 @@ installDock()
                 # Enabling docker to start automatically on hardware reboot
                 echo " Enabling the Docker service to start automatically on boot."
                 (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+                (sudo usermod -aG docker $USER) >> ~/docker/homelab-install-script.log 2>&1
                 echo ""
                 echo "Done."
         }
@@ -364,6 +365,7 @@ installNxtCld()
                 # Enabling docker to start automatically on hardware reboot
                 echo " Enabling the Docker service to start automatically on boot."
                 (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+                (sudo usermod -aG docker $USER) >> ~/docker/homelab-install-script.log 2>&1
                 echo ""
                 echo "Done."
         }
@@ -698,6 +700,7 @@ installMSP()
                 # Enabling docker to start automatically on hardware reboot
                 echo " Enabling the Docker service to start automatically on boot."
                 (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+                (sudo usermod -aG docker $USER) >> ~/docker/homelab-install-script.log 2>&1
                 echo ""
                 echo "Done."
         }
@@ -1445,6 +1448,7 @@ installWP()
                 # Enabling docker to start automatically on hardware reboot
                 echo " Enabling the Docker service to start automatically on boot."
                 (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+                (sudo usermod -aG docker $USER) >> ~/docker/homelab-install-script.log 2>&1
                 echo ""
                 echo "Done."
         }
@@ -1864,6 +1868,7 @@ installApps()
                 # Enabling docker to start automatically on hardware reboot
                 echo " Enabling the Docker service to start automatically on boot."
                 (sudo systemctl enable docker) >> ~/docker/homelab-install-script.log 2>&1
+                (sudo usermod -aG docker $USER) >> ~/docker/homelab-install-script.log 2>&1
                 echo ""
                 echo "Done."
         }
