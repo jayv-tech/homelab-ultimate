@@ -111,7 +111,7 @@ installDock()
             echo ""
             sleep 3s
             echo " Starting the Docker Service"
-            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            (sudo systemctl start docker) >> ~/docker/homelab-install-script.log 2>&1
             sleep 10s
             echo ""
             echo " Done."
@@ -393,7 +393,7 @@ installNxtCld()
             echo ""
             sleep 3s
             echo " Starting the Docker Service"
-            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            (sudo systemctl start docker) >> ~/docker/homelab-install-script.log 2>&1
             sleep 10s
             echo ""
             echo " Done."
@@ -760,7 +760,7 @@ installMSP()
             echo ""
             sleep 3s
             echo " Starting the Docker Service"
-            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            (sudo systemctl start docker) >> ~/docker/homelab-install-script.log 2>&1
             sleep 10s
             echo ""
             echo " Done."
@@ -1538,7 +1538,7 @@ installWP()
             echo ""
             sleep 3s
             echo " Starting the Docker Service"
-            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            (sudo systemctl start docker) >> ~/docker/homelab-install-script.log 2>&1
             sleep 10s
             echo ""
             echo " Done."
@@ -1992,7 +1992,7 @@ installApps()
             echo ""
             sleep 3s
             echo " Starting the Docker Service"
-            (sudo systemctl docker start) >> ~/docker/homelab-install-script.log 2>&1
+            (sudo systemctl start docker) >> ~/docker/homelab-install-script.log 2>&1
             sleep 10s
             echo ""
             echo " Done."
