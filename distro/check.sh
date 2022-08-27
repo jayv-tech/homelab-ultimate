@@ -145,13 +145,13 @@ do_install() {
     # Run setup for each distro accordingly
 	case "$lsb_dist" in
 
-        arch)
-            curl -sSL https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/distro/arch.sh | sudo bash
-            exit 0
+		arch)
+		    echo "Support for Arch is coming soon."
+		    exit 0
 			;;
-        alpine)
-            echo "This distribution is not yet supported, but is on the works. ETA not known."
-            exit 0
+		alpine)
+		    echo "This distribution is not yet supported, but is on the works. ETA not known."
+		    exit 0
 			;;
 		ubuntu|debian|raspbian)
 			curl -sSL https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/distro/debian.sh | sudo bash
