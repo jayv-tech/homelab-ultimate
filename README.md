@@ -17,8 +17,10 @@ Open Terminal (if using a desktop environment) or Putty/any SSH tool that you us
 Copy and paste the following:
 
 ```
-curl -o install.sh https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/install.sh | sudo bash install.sh
+curl -fsSL https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/install.sh -o install.sh && sudo chmod +x install.sh && sudo ./install.sh
 ```
+
+And once the installation is over, you can safely remove the `.sh` files from the directory using `sudo rm install.sh debian.sh` or the similar for other distros.
 
 ## Features
 
