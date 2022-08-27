@@ -17,7 +17,7 @@ Open Terminal (if using a desktop environment) or Putty/any SSH tool that you us
 Copy and paste the following:
 
 ```
-curl -sSL https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/install.sh | sudo bash
+bash <(curl -sSL https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/install.sh)
 ```
 
 ## Features
