@@ -154,7 +154,7 @@ do_install() {
 		    exit 0
 			;;
 		ubuntu|debian|raspbian)
-			curl -o install.sh https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/distro/debian.sh | sudo bash install.sh
+			curl -o debian.sh https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/distro/debian.sh | sudo bash debian.sh
 			exit 0
 			;;
 		centos|fedora|rhel)
@@ -164,9 +164,9 @@ do_install() {
 				exit 1
 			fi
 			if [ "$lsb_dist" = "fedora" ]; then
-				curl -o install.sh https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/distro/fedora.sh | sudo bash install.sh
+				curl -o fedora.sh https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/distro/fedora.sh | sudo bash fedora.sh
 			else
-			curl -o install.sh https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/distro/centos.sh | sudo bash install.sh
+			curl -o centos.sh https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/distro/centos.sh | sudo bash centos.sh
 			fi
 			exit 0
 			;;
