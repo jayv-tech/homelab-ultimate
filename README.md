@@ -17,7 +17,7 @@ Open Terminal (if using a desktop environment) or Putty/any SSH tool that you us
 Copy and paste the following:
 
 ```
-bash <(curl -sSL https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/install.sh)
+curl -o install.sh https://raw.githubusercontent.com/Jayavel-S/homelab-ultimate/main/install.sh | sudo bash install.sh
 ```
 
 ## Features
@@ -52,6 +52,16 @@ Choosing any option will get the default dependencies taken care of (i.e.) the s
 **[Back to Top](#ultimate-homelab-setup)**
 
 ## Changelog
+
+<details><summary>Version 3.0</summary>
+<p>
+
+   - Added support for CentOS, and Fedora distributions.
+   - Updated the script to fetch the latest version of Docker Compose directly from their repository.
+   - Improved the updates check.
+
+</p>
+</details>
 
 <details><summary>Version 2.0</summary>
 <p>
